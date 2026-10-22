@@ -65,9 +65,15 @@ namespace PoseSync
 
             if (req.result != UnityWebRequest.Result.Success)
             {
-                Debug.LogWarning($"[HttpPoseEstimator] 判定に失敗: {req.error}");
+                // 体験の途中でサーバーが応答しない時は、ランダムなデバッグ判定ではなく「おまかせ」にする
+                // (デバッグ判定はサーバーを起動していない開発時だけ使う)。次の撮影の前に接続を確かめ直す。
+                Debug.LogWarning($"[HttpPoseEstimator] 判定に失敗: {req.error}(おまかせポーズにします)");
                 ServerAvailable = false;
-                return await Fallback(frames);
+                return new PoseJudgeResult
+                {
+                    poseId = -1, distance = 0f, fallback = true, reason = "server_error",
+                    latencyMs = (Time.realtimeSinceStartup - t0) * 1000f, source = "http",
+                };
             }
 
             var res = JsonUtility.FromJson<JudgeResponse>(req.downloadHandler.text);

@@ -25,13 +25,16 @@ namespace PoseSync
         public MonoBehaviour poseEstimator;
         [Tooltip("ISegmenter を実装したコンポーネント(撮影者の切り抜き)")]
         public MonoBehaviour segmenter;
+        [Tooltip("立ち位置の自動判定。無い・使えない時は「撮影開始！」ボタンで進む")]
+        public StandingDetector standingDetector;
         public PhotoCompositor compositor;
         [Tooltip("判定に使うフレーム数(シャッター直前〜シャッター)")]
         public int judgeFrameCount = 5;
 
         [Header("Timing")]
         public float talentSlideSeconds = 0.5f;
-        public float guidePoseInterval = 2f;
+        [Tooltip("見本ポーズを1つ見せる時間(秒)")]
+        public float guidePoseInterval = 3f;
         public float countdownSeconds = 3f;
         public float poseTransitionSeconds = 0.4f;
         public int captureSize = 1080;
@@ -153,9 +156,39 @@ namespace PoseSync
             State = BoothState.Standing;
             await SlideTalent(true, ct);
             standingGuide.SetActive(true);
-            SetMessage("枠の中に、頭から腰までが入るように立ってね");
-            SetPrimary("撮影開始！");
-            await WaitForAdvance(ct);
+            const string Guide = "枠の中に、頭から腰までが入るように立ってね";
+            SetMessage(Guide);
+
+            // 枠の中に立ったら自動で撮影へ進む。判定できない時(サーバー未起動など)だけボタンを出す
+            bool auto = standingDetector != null && standingDetector.isActiveAndEnabled;
+            if (auto) standingDetector.Begin();
+            SetPrimary(auto ? null : "撮影開始！");
+            advanceRequested = false;
+            bool wasInPosition = false;
+            while (!advanceRequested)
+            {
+                if (auto)
+                {
+                    if (!standingDetector.Available)
+                    {
+                        auto = false;
+                        SetPrimary("撮影開始！");
+                    }
+                    else if (standingDetector.Ready)
+                    {
+                        break;
+                    }
+                    else if (standingDetector.InPosition != wasInPosition)
+                    {
+                        wasInPosition = standingDetector.InPosition;
+                        SetMessage(wasInPosition ? "その場でキープ！" : Guide);
+                    }
+                }
+                await Awaitable.NextFrameAsync(ct);
+            }
+            advanceRequested = false;
+            if (standingDetector != null) standingDetector.End();
+            SetPrimary(null);
             standingGuide.SetActive(false);
         }
 
@@ -163,7 +196,7 @@ namespace PoseSync
         async Awaitable PoseGuideStep(CancellationToken ct)
         {
             State = BoothState.PoseGuide;
-            SetMessage("好きなポーズをとろう!");
+            SetMessage("ポーズを考えて！");
             SetPrimary(null); // 見本を見せている間はボタンを出さない(Space キーでは先に進める)
             advanceRequested = false;
 
@@ -175,8 +208,7 @@ namespace PoseSync
                 if (Time.time >= next)
                 {
                     var pose = PoseLibrary.Data.poses[i % PoseLibrary.Count];
-                    talent.TransitionTo(pose.ToTalentPose(), 0.35f);
-                    SetPoseLabel($"見本: {pose.label}");
+                    talent.TransitionTo(pose.ToTalentPose(), 0.35f); // ポーズ名は出さない(タレントの見本だけ見せる)
                     i++;
                     next = Time.time + guidePoseInterval;
                 }
@@ -270,7 +302,7 @@ namespace PoseSync
         {
             State = BoothState.Result;
             // 判定したポーズ名は出さない(写真を見てもらう)
-            SetMessage("撮影完了!", resultMessageStyle);
+            SetMessage("撮影完了!");
             SetPrimary("もう一度");
             await WaitForAdvance(ct);
             SetMessage("");
@@ -348,8 +380,8 @@ namespace PoseSync
         }
 
         [Header("Message styles")]
-        [Tooltip("結果画面の「撮影完了!」。明るい背景の上でも読めるよう濃いピンク + 白縁")]
-        public MessageStyle resultMessageStyle = new MessageStyle
+        [Tooltip("画面上部の案内文すべて(立ち位置・見本・カウントダウン・撮影完了)。明るい背景やカメラ映像の上でも読めるよう濃いピンク + 白縁")]
+        public MessageStyle highlightMessageStyle = new MessageStyle
         {
             fontSize = 84,
             color = new Color(0.86f, 0.18f, 0.45f),
@@ -357,22 +389,18 @@ namespace PoseSync
             outlineDistance = new Vector2(4f, -4f),
         };
 
-        MessageStyle? defaultMessageStyle;
-
-        /// <summary>style 省略時は通常の見た目(シーンで設定した白文字+黒縁)に戻す。</summary>
+        /// <summary>案内文を出す。style 省略時は highlightMessageStyle(すべての案内文で見た目を揃える)。</summary>
         void SetMessage(string text, MessageStyle? style = null)
         {
             var outline = messageText.GetComponent<Outline>();
-            defaultMessageStyle ??= new MessageStyle
-            {
-                fontSize = messageText.fontSize,
-                color = messageText.color,
-                outlineColor = outline != null ? outline.effectColor : Color.black,
-                outlineDistance = outline != null ? outline.effectDistance : Vector2.zero,
-            };
-            var s = style ?? defaultMessageStyle.Value;
+            var s = style ?? highlightMessageStyle;
             messageText.text = text;
             messageText.fontSize = s.fontSize;
+            // 長い案内文は表示枠に収まるまで自動で縮める(短い文は指定の大きさのまま)
+            messageText.resizeTextForBestFit = true;
+            messageText.resizeTextMinSize = 28;
+            messageText.resizeTextMaxSize = s.fontSize;
+            messageText.verticalOverflow = VerticalWrapMode.Truncate;
             messageText.color = s.color;
             if (outline != null)
             {

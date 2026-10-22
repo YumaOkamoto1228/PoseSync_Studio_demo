@@ -6,6 +6,7 @@
     GET  /health  : 起動確認
     POST /judge   : multipart の frames(JPEG 複数、鏡像・1:1 済み)→ ポーズ判定結果(JSON)
     POST /cutout  : multipart の frame(JPEG 1枚)→ 撮影者を切り抜いた PNG(アルファ付き)。人物なしは 422
+    POST /detect  : multipart の frame(JPEG 1枚、小さくてよい)→ 肩・肘・手首の画面位置(立ち位置の自動判定用)
 
 Unity 側は撮影直前〜シャッターの数フレームを送り、フレームごとの判定を多数決で1つにまとめて返す(§5-5)。
 """
@@ -24,7 +25,7 @@ import numpy as np
 import uvicorn
 from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 
-from posesync.cutout import PoseMaskSegmenter
+from posesync.cutout import CutoutConfig, PoseMaskSegmenter
 from posesync.estimator import PoseEstimator
 from posesync.features import compute_features
 from posesync.matcher import PoseMatcher
@@ -37,6 +38,8 @@ _matcher: PoseMatcher | None = None
 _lock = threading.Lock()  # MediaPipe の推論器はスレッドセーフではない
 SAVE_FRAMES = False  # 判定に使ったフレーム画像を保存するか(--save-frames)
 SAVE_LOG = False     # 判定結果と骨格を data/judge_log に記録するか(起動時は既定で記録、テストでは記録しない)
+EXTRA_SEGMENTER: str | None = None  # 切り抜きで姿勢推定のマスクに合わせる追加モデル(--extra-seg)
+_segmenter: PoseMaskSegmenter | None = None
 
 
 def _models() -> tuple[PoseEstimator, PoseMatcher]:
@@ -112,6 +115,24 @@ def _skeleton_json(det) -> dict | None:
             "visibility": sk.visibility, "min_visibility": sk.min_visibility, "num_persons": det.num_persons}
 
 
+@app.post("/detect")
+def detect(frame: UploadFile = File(...)) -> dict:
+    """立ち位置ガイド用: 撮影者の肩・肘・手首の位置を返す(画面座標 0..1、x=右、y=上)。"""
+    est, _ = _models()
+    img = cv2.imdecode(np.frombuffer(frame.file.read(), np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        raise HTTPException(400, "画像を読めません")
+    with _lock:
+        det = est.estimate(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    if det is None:
+        return {"found": False}
+    h, w = img.shape[:2]
+    sk = det.skeleton
+    # Skeleton2D は画素単位・y 上向き(負の値)なので、0..1 の画面座標に直す
+    points = {k: [float(v[0] / w), float(1 + v[1] / h)] for k, v in sk.points().items()}
+    return {"found": True, "persons": det.num_persons, "points": points, "visibility": sk.visibility}
+
+
 @app.post("/cutout")
 def cutout(frame: UploadFile = File(...)) -> Response:
     t0 = time.perf_counter()
@@ -119,8 +140,11 @@ def cutout(frame: UploadFile = File(...)) -> Response:
     img = cv2.imdecode(np.frombuffer(frame.file.read(), np.uint8), cv2.IMREAD_COLOR)
     if img is None:
         raise HTTPException(400, "画像を読めません")
+    global _segmenter
     with _lock:
-        bgra = PoseMaskSegmenter(est).cutout(img)
+        if _segmenter is None:
+            _segmenter = PoseMaskSegmenter(est, CutoutConfig(extra_model=EXTRA_SEGMENTER))
+        bgra = _segmenter.cutout(img)
     if bgra is None:
         raise HTTPException(422, "人物が見つかりません")
     png = cv2.imencode(".png", bgra, [cv2.IMWRITE_PNG_COMPRESSION, 1])[1].tobytes()
@@ -142,15 +166,18 @@ def _save(log_id: str, images, response: dict, per_frame, skeletons) -> None:
 
 
 def main() -> None:
-    global SAVE_FRAMES, SAVE_LOG
+    global SAVE_FRAMES, SAVE_LOG, EXTRA_SEGMENTER
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--save-frames", action="store_true", help="判定に使ったフレーム画像も data/judge_log に保存する(個人データ)")
     ap.add_argument("--no-log", action="store_true", help="判定結果と骨格の記録もしない")
+    ap.add_argument("--extra-seg", choices=["none", "deeplab", "multiclass"], default="none",
+                    help="切り抜きで姿勢推定のマスクに合わせる追加モデル(tools/cutout_compare.py で比べて選ぶ)")
     args = ap.parse_args()
     SAVE_FRAMES = args.save_frames
     SAVE_LOG = not args.no_log
+    EXTRA_SEGMENTER = None if args.extra_seg == "none" else args.extra_seg
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 
 

@@ -27,6 +27,12 @@ curl -L -o models\pose_landmarker_heavy.task https://storage.googleapis.com/medi
 .venv\Scripts\python app.py
 ```
 
+切り抜き方式の比較(`tools/cutout_compare.py`)や `app.py --extra-seg deeplab|multiclass` を使う時は、追加のモデルも置く:
+```
+curl -L -o models\deeplab_v3.tflite https://storage.googleapis.com/mediapipe-models/image_segmenter/deeplab_v3/float32/latest/deeplab_v3.tflite
+curl -L -o models\selfie_multiclass_256x256.tflite https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite
+```
+
 ### Unity
 1. Unity 6000.3 で `PoseSync/` を開く(UniVRM は OpenUPM から自動で入る)。
 2. **VRM モデルは同梱していません。** 利用条件を守れる VRM(VRM0)を `PoseSync/Assets/ThirdParty/VRM/` に置く。

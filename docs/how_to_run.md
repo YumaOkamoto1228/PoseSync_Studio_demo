@@ -15,7 +15,7 @@ cd C:\PoseSync_Studio\server
 ## 2. Unity で Play
 1. `Assets/PoseSync/Scenes/Booth.unity` を開く。
 2. Game ビューの比率は何でもよい(中央に 1:1 で表示される)。1080×1080 にすると録画しやすい。
-3. Play → スタート → 準備OK → 見本ポーズ(Space で撮影へ)→ カウントダウン → 判定 → 結果。
+3. Play → スタート → 枠の中に立つ(両肩・両肘が枠に入ると自動で次へ)→ 見本ポーズ(Space で撮影へ)→ カウントダウン → 判定 → 結果。
    - Space = ボタンと同じ、Esc = 最初に戻る。
 4. 画面左下のステータスに、接続状態と直近の判定(`votes` = 各フレームの判定、`server` / `total` = 遅延)が出る。
 
@@ -59,3 +59,8 @@ Play 中の変更は停止すると元に戻る。決まった値は控えてお
   - 結果画面で記録係が `1`〜`4` / `0` を押すと「参加者がとったつもりのポーズ」を記録。
   - 待機画面で `N` を押すと次の参加者 ID へ。左下のステータスに記録状況が出る。
 - 集計:`server` で `.venv\Scripts\python tools\analyze_sessions.py` → `docs/user_test.md`。
+
+## 8. 切り抜き方式の比較
+- 撮影するたびに元の写真が `data/photos/raw/` に保存される(PC 内のみ)。
+- `server` で `.venv\Scripts\python tools\cutout_compare.py` → `docs/cutout_compare.png`(新しい6枚 × 4方式)。
+- 良かった方式で起動する:例 `.venv\Scripts\python app.py --extra-seg deeplab`

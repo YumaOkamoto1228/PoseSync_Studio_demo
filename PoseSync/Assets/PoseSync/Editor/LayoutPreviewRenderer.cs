@@ -41,9 +41,21 @@ namespace PoseSync.EditorTools
             flow.webcam.view.texture = placeholder;
             flow.startPanel.SetActive(false);
             flow.standingGuide.SetActive(true);
+            // 実際の立ち位置ガイドと同じ見た目(目立たせる案内文、ボタンなし = 枠に入ると自動で開始)
+            var style = flow.highlightMessageStyle;
             flow.messageText.text = "枠の中に、頭から腰までが入るように立ってね";
-            flow.primaryButton.gameObject.SetActive(true);
-            flow.primaryButtonLabel.text = "撮影開始！";
+            flow.messageText.fontSize = style.fontSize;
+            flow.messageText.resizeTextForBestFit = true;
+            flow.messageText.resizeTextMinSize = 28;
+            flow.messageText.resizeTextMaxSize = style.fontSize;
+            flow.messageText.verticalOverflow = VerticalWrapMode.Truncate;
+            flow.messageText.color = style.color;
+            if (flow.messageText.TryGetComponent(out UnityEngine.UI.Outline outline))
+            {
+                outline.effectColor = style.outlineColor;
+                outline.effectDistance = style.outlineDistance;
+            }
+            flow.primaryButton.gameObject.SetActive(false);
             flow.talentView.anchoredPosition = look.TalentShownPosition;
 
             // Overlay の Canvas はカメラで撮れないので、一時的に Camera モードにして描く

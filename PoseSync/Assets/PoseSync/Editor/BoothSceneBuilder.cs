@@ -275,6 +275,12 @@ namespace PoseSync.EditorTools
             flow.compositeView = compositeView;
             debugEstimator.flow = flow;
 
+            // 枠の中に立ったら自動で撮影へ進む(両肩・両肘の位置で判定)
+            var standing = booth.AddComponent<StandingDetector>();
+            standing.webcam = webcam;
+            standing.look = look;
+            flow.standingDetector = standing;
+
             // 簡易ユーザーテスト用の体験ログ(data/sessions/*.jsonl)
             var logger = booth.AddComponent<SessionLogger>();
             logger.flow = flow;
@@ -368,11 +374,7 @@ namespace PoseSync.EditorTools
             var top = Border(frame, "Top", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, w), c);
             var left = Border(frame, "Left", new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(w, 0f), c);
             var right = Border(frame, "Right", new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(w, 0f), c);
-            var hint = NewText("Hint", frame, "頭", 36, TextAnchor.UpperCenter);
-            SetAnchors(hint.rectTransform, new Vector2(0f, 0.86f), new Vector2(1f, 0.98f));
-            var waist = NewText("Waist", frame, "— 腰 —", 36, TextAnchor.MiddleCenter);
-            SetAnchors(waist.rectTransform, new Vector2(0f, 0.02f), new Vector2(0.55f, 0.1f)); // 中央下のボタンと重ならないよう左寄せ
-            return (guide.gameObject, frame, new Graphic[] { top, left, right, hint, waist });
+            return (guide.gameObject, frame, new Graphic[] { top, left, right });
         }
 
         static Image Border(RectTransform parent, string name, Vector2 min, Vector2 max, Vector2 size, Color color)

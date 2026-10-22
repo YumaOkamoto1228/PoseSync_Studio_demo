@@ -31,6 +31,8 @@ namespace PoseSync
 
         [Header("保存")]
         public bool saveToDisk = true;
+        [Tooltip("切り抜き前の元の写真も data/photos/raw に保存する(切り抜きの調整用。PC 内のみ)")]
+        public bool saveRawPhoto = true;
 
         Material material;
         Texture2D background;
@@ -84,7 +86,7 @@ namespace PoseSync
             RenderTexture.active = prev;
             RenderTexture.ReleaseTemporary(rt);
 
-            if (saveToDisk) Save(result);
+            if (saveToDisk) Save(result, saveRawPhoto ? photo : null);
             return result;
         }
 
@@ -95,14 +97,21 @@ namespace PoseSync
             Graphics.DrawTexture(rect, tex, new Rect(0, 0, 1, 1), 0, 0, 0, 0, color, material);
         }
 
-        void Save(Texture2D tex)
+        void Save(Texture2D tex, Texture2D raw)
         {
             try
             {
                 string dir = Path.GetFullPath(Path.Combine(Application.dataPath, "../../data/photos"));
                 Directory.CreateDirectory(dir);
-                LastSavedPath = Path.Combine(dir, $"PoseSync_{DateTime.Now:yyyyMMdd_HHmmss}.png");
+                string stamp = $"PoseSync_{DateTime.Now:yyyyMMdd_HHmmss}";
+                LastSavedPath = Path.Combine(dir, stamp + ".png");
                 File.WriteAllBytes(LastSavedPath, tex.EncodeToPNG());
+                if (raw != null)
+                {
+                    // 切り抜きの比較・調整用(server/tools/cutout_compare.py が読む)。明るさ補正前のカメラ画像
+                    Directory.CreateDirectory(Path.Combine(dir, "raw"));
+                    File.WriteAllBytes(Path.Combine(dir, "raw", stamp + ".jpg"), raw.EncodeToJPG(95));
+                }
                 Debug.Log($"[PhotoCompositor] 保存: {LastSavedPath}");
             }
             catch (Exception e)
