@@ -11,6 +11,8 @@ namespace PoseSync
     public class DebugPoseEstimator : MonoBehaviour, IPoseEstimator
     {
         public float fakeLatencySeconds = 0.2f;
+        [Tooltip("指定するとカウントダウン中だけ数字キーを受け付ける(結果画面の数字キーは検証ログの正解ラベル入力に使うため)")]
+        public BoothFlow flow;
 
         int? forced;
 
@@ -22,7 +24,7 @@ namespace PoseSync
         void Update()
         {
             var kb = Keyboard.current;
-            if (kb == null) return;
+            if (kb == null || (flow != null && flow.State != BoothState.Countdown)) return;
             if (kb.digit0Key.wasPressedThisFrame) forced = -1;
             if (kb.digit1Key.wasPressedThisFrame) forced = 0;
             if (kb.digit2Key.wasPressedThisFrame) forced = 1;
@@ -37,7 +39,7 @@ namespace PoseSync
             await Awaitable.WaitForSecondsAsync(fakeLatencySeconds);
             int id = forced ?? Random.Range(0, PoseLibrary.Count);
             forced = null;
-            return new PoseJudgeResult { poseId = id, distance = 0f, fallback = id < 0 };
+            return new PoseJudgeResult { poseId = id, distance = 0f, fallback = id < 0, source = "debug" };
         }
     }
 }

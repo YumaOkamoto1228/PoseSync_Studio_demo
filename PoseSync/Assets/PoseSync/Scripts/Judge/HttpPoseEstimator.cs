@@ -32,6 +32,7 @@ namespace PoseSync
             public string reason;
             public string[] votes;
             public float latency_ms;
+            public string log_id;
         }
 
         async void Start()
@@ -73,7 +74,11 @@ namespace PoseSync
             float roundTrip = (Time.realtimeSinceStartup - t0) * 1000f;
             LastSummary = $"{res.key} d={res.distance:F1} votes=[{string.Join(",", res.votes ?? Array.Empty<string>())}] server={res.latency_ms:F0}ms total={roundTrip:F0}ms";
             Debug.Log($"[HttpPoseEstimator] {LastSummary} reason={res.reason}");
-            return new PoseJudgeResult { poseId = res.pose_id, distance = res.distance, fallback = res.fallback };
+            return new PoseJudgeResult
+            {
+                poseId = res.pose_id, distance = res.distance, fallback = res.fallback,
+                reason = res.reason, votes = res.votes, latencyMs = roundTrip, logId = res.log_id, source = "http",
+            };
         }
 
         async Awaitable<PoseJudgeResult> Fallback(IReadOnlyList<Texture2D> frames)

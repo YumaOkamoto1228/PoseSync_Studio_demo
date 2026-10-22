@@ -54,7 +54,27 @@ namespace PoseSync
         public Image flash;
         public Text statusText;
 
-        public BoothState State { get; private set; }
+        public BoothState State
+        {
+            get => state;
+            private set
+            {
+                if (state == value) return;
+                state = value;
+                StateChanged?.Invoke(value);
+            }
+        }
+        BoothState state;
+
+        /// <summary>状態が変わった時(検証ログ用)。</summary>
+        public event Action<BoothState> StateChanged;
+        /// <summary>体験の途中で Esc により最初に戻された時。引数は中断した時の状態。</summary>
+        public event Action<BoothState> SessionAborted;
+        /// <summary>合成まで終わった時。引数は切り抜きに成功したか。</summary>
+        public event Action<bool> ShotCompleted;
+        /// <summary>状態表示の末尾に足す文字列(検証ログの記録状況など)。</summary>
+        public string StatusSuffix { get; set; } = "";
+
         public PoseJudgeResult LastResult { get; private set; }
         public Texture2D LastPhoto { get; private set; }
         public Texture2D LastComposite { get; private set; }
@@ -83,10 +103,14 @@ namespace PoseSync
             if (kb != null)
             {
                 if (kb.spaceKey.wasPressedThisFrame) RequestAdvance();
-                if (kb.escapeKey.wasPressedThisFrame) Restart();
+                if (kb.escapeKey.wasPressedThisFrame)
+                {
+                    if (State != BoothState.Idle && State != BoothState.Result) SessionAborted?.Invoke(State);
+                    Restart();
+                }
             }
             if (statusText != null)
-                statusText.text = $"{State}  cam:{(webcam != null && webcam.IsReady ? webcam.DeviceName : "not ready")}  judge:{Estimator?.DisplayName}";
+                statusText.text = $"{State}  cam:{(webcam != null && webcam.IsReady ? webcam.DeviceName : "not ready")}  judge:{Estimator?.DisplayName}{StatusSuffix}";
         }
 
         public void RequestAdvance() => advanceRequested = true;
@@ -238,6 +262,7 @@ namespace PoseSync
                 resultPhoto.gameObject.SetActive(false);
                 talentView.gameObject.SetActive(false); // 写真に含まれている
             }
+            ShotCompleted?.Invoke(lastCutout != null);
         }
 
         // ---- 8. 結果表示 --------------------------------------------------

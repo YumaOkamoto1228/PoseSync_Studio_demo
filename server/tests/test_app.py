@@ -33,6 +33,21 @@ def test_refine_mask_keeps_shape_and_range():
     assert alpha[100, 100] > 0.95 and alpha[5, 5] < 0.05
 
 
+def test_judge_log_saves_result_without_images(tmp_path, monkeypatch):
+    import json
+    monkeypatch.setattr(server, "LOG_DIR", tmp_path)
+    monkeypatch.setattr(server, "SAVE_LOG", True)
+    monkeypatch.setattr(server, "SAVE_FRAMES", False)
+    blank = np.full((256, 256, 3), 128, np.uint8)
+    with TestClient(server.app) as c:
+        body = c.post("/judge", files=[("frames", ("f.jpg", jpeg(blank), "image/jpeg"))]).json()
+    assert body["log_id"]
+    saved = tmp_path / body["log_id"]
+    assert not list(saved.glob("*.jpg"))  # 画像は --save-frames の時だけ
+    data = json.loads((saved / "result.json").read_text(encoding="utf-8"))
+    assert data["skeletons"] == [None] and data["frames"][0]["reason"] == "no_person"
+
+
 def test_judge_without_person_falls_back():
     blank = np.full((512, 512, 3), 128, np.uint8)
     files = [("frames", (f"f{i}.jpg", jpeg(blank), "image/jpeg")) for i in range(3)]

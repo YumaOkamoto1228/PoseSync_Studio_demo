@@ -51,3 +51,11 @@ Play 中の変更は停止すると元に戻る。決まった値は控えてお
 - 背景を変えたい時は `PoseSync/Assets/StreamingAssets/backgrounds/background.png`(正方形推奨)を置く。
 - 影の濃さ・ずらし量は `Booth` の **PhotoCompositor**(shadowOpacity / shadowOffset)。
 - 切り抜きの品質だけを見る:Unity を閉じてカメラの前に立ち、`server` で `.venv\Scripts\python tools\cutout_check.py`(→ `docs/cutout_check.png`)。
+
+## 7. 簡易ユーザーテスト
+手順は [user_test_plan.md](user_test_plan.md)。要点:
+- 判定サーバーは判定結果と骨格を `data/judge_log/` に自動で記録する(画像は `--save-frames` の時だけ)。
+- Unity の **SessionLogger**(`Booth`)が体験ごとの記録を `data/sessions/日付.jsonl` に追記する。
+  - 結果画面で記録係が `1`〜`4` / `0` を押すと「参加者がとったつもりのポーズ」を記録。
+  - 待機画面で `N` を押すと次の参加者 ID へ。左下のステータスに記録状況が出る。
+- 集計:`server` で `.venv\Scripts\python tools\analyze_sessions.py` → `docs/user_test.md`。

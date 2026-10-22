@@ -9,6 +9,13 @@ namespace PoseSync
         public int poseId;
         public float distance;
         public bool fallback;
+
+        // ---- 検証ログ用の詳細(実装によっては空) ----
+        public string reason;     // フォールバックの理由(low_visibility / too_far / no_person)
+        public string[] votes;    // フレームごとの判定
+        public float latencyMs;   // 判定にかかった時間(往復)
+        public string logId;      // サーバー側に保存したフレームの ID(--save-frames 時)
+        public string source;     // どの実装で判定したか(http / debug)
     }
 
     /// <summary>

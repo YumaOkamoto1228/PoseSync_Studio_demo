@@ -273,6 +273,12 @@ namespace PoseSync.EditorTools
             flow.segmenter = segmenter;
             flow.compositor = compositor;
             flow.compositeView = compositeView;
+            debugEstimator.flow = flow;
+
+            // 簡易ユーザーテスト用の体験ログ(data/sessions/*.jsonl)
+            var logger = booth.AddComponent<SessionLogger>();
+            logger.flow = flow;
+            logger.compositor = compositor;
             flow.messageText = message;
             flow.countdownText = countdown;
             flow.poseLabelText = poseLabel;

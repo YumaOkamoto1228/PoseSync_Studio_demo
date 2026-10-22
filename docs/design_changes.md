@@ -114,3 +114,10 @@
 - 確認:PoseSync > Run Flow Probe(テスト用の楕円切り抜きで全ポーズを自動撮影・合成)。実際の切り抜き品質は `server/tools/cutout_check.py`(→ `docs/cutout_check.png`)。
 - (2026-10-22 追記)初回の実撮影で切り抜かれなかった原因:判定サーバーが `/cutout` 追加前の版のまま動いていた(404)。HttpSegmenter は 404 の時に「app.py を再起動」と表示するようにした。
 - タレントの大きさを 85%(size 1273 / offsetY -400、頭の位置は維持)に変更。
+
+### 簡易ユーザーテストの仕組み(2026-10-23 / 5日目)
+- Unity `SessionLogger`:体験ごとにステップ所要時間・離脱点・判定結果・切り抜き成否・写真のパス・記録係が入力した意図ポーズを `data/sessions/*.jsonl` に記録。
+- BoothFlow に `StateChanged` / `SessionAborted` / `ShotCompleted` イベントを追加。`PoseJudgeResult` に理由・フレームごとの判定・遅延・ログ ID を追加。
+- デバッグ判定の数字キーはカウントダウン中だけ受け付ける(結果画面の数字キーは意図ポーズの入力に使うため)。
+- Python:判定結果と骨格を毎回 `data/judge_log/<log_id>/result.json` に記録(画像は `--save-frames` 時のみ)。閾値やテンプレートを変えた後に撮り直さず再計算できる。
+- `tools/analyze_sessions.py`:正解率・混同行列・所要時間・離脱点・閾値ごとの正解率 → `docs/user_test.md`。手順は `docs/user_test_plan.md`。

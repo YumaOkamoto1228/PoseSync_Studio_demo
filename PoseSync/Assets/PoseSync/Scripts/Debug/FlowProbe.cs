@@ -29,6 +29,12 @@ namespace PoseSync
             var debug = flow.GetComponent<DebugPoseEstimator>();
             flow.poseEstimator = debug; // 判定サーバーの有無に関係なく結果を固定する
             if (useFakeCutout) flow.segmenter = gameObject.AddComponent<FakeSegmenter>();
+            var logger = flow.GetComponent<SessionLogger>();
+            if (logger != null)
+            {
+                logger.fileSuffix = "_probe"; // 本番の体験ログと混ぜない
+                logger.participant = "PROBE";
+            }
 
             var targets = new List<PoseDefinition>(PoseLibrary.Data.poses) { PoseLibrary.Fallback };
             for (int run = 0; run < targets.Count; run++)
@@ -54,6 +60,7 @@ namespace PoseSync
                 yield return new WaitForSeconds(1.0f);
                 var result = Sample();
                 Compare(target.key, result);
+                if (logger != null) logger.SetIntended(target.id); // 記録係の数字キー入力の代わり
                 var comp = flow.compositor;
                 log.AppendLine($"  合成: {(flow.LastComposite != null ? $"{flow.LastComposite.width}x{flow.LastComposite.height} → {comp.LastSavedPath}" : "なし(カメラ映像なし?)")}");
                 flow.RequestAdvance();                       // もう一度
