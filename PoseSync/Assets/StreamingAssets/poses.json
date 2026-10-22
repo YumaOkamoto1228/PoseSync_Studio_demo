@@ -1,0 +1,81 @@
+{
+  "version": 2,
+  "coordinate": "方向ベクトルはすべて画面座標系(鏡像表示後)。x=画面右, y=上, z=カメラ側(手前)。screen_left/right は画面上で左/右に見える腕。撮影者は画面左、タレントは画面右に立つ。",
+  "notes": {
+    "talent": "タレントの応答ポーズ。upper/lower=上腕/前腕の向き、shape=指の形(relaxed/peace/heart/open/fist)、fingers=手首→指先の向き、palm=手のひらの向き、spine_roll=体の傾き(度, +で頭が画面右へ)、spine_pitch=前傾(度, +でカメラ側)",
+    "user_templates": "撮影者側の判定テンプレート(Python が x,y を使う)。1ポーズに複数可。mirror=true なら左右反転版も自動で追加。shoulder_roll=肩ラインの傾き(度, +で頭が画面右へ傾く)"
+  },
+  "rest_pose": {
+    "id": -2, "key": "rest", "label": "待機",
+    "talent": {
+      "screen_left":  { "upper": [-0.20, -0.98, 0.00], "lower": [-0.10, -0.98, 0.15], "shape": "relaxed", "fingers": [-0.05, -0.99, 0.10], "palm": [ 1.0, 0.0, 0.0] },
+      "screen_right": { "upper": [ 0.20, -0.98, 0.00], "lower": [ 0.10, -0.98, 0.15], "shape": "relaxed", "fingers": [ 0.05, -0.99, 0.10], "palm": [-1.0, 0.0, 0.0] },
+      "spine_roll": 0, "spine_pitch": 0
+    },
+    "user_templates": []
+  },
+  "fallback_pose": {
+    "id": -1, "key": "default", "label": "おまかせ",
+    "talent": {
+      "screen_left":  { "upper": [-0.25, -0.97, -0.05], "lower": [-0.05, -0.99, 0.10], "shape": "relaxed", "fingers": [-0.05, -0.99, 0.10], "palm": [ 1.0, 0.0, 0.0] },
+      "screen_right": { "upper": [ 0.50, -0.30, 0.81], "lower": [ 0.75,  0.05, 0.66], "shape": "open",    "fingers": [ 0.85,  0.10, 0.50], "palm": [-0.4, 0.1, 0.9] },
+      "spine_roll": -6, "spine_pitch": 4, "head_roll": -8,
+      "expression": { "blink_screen_left": 1.0, "blink_screen_right": 0.0, "joy": 0.0 }
+    },
+    "user_templates": []
+  },
+  "poses": [
+    {
+      "id": 0, "key": "heart_half", "label": "ハート",
+      "talent": {
+        "screen_left":  { "upper": [-0.20, -0.98, 0.00], "lower": [-0.10, -0.98, 0.15], "shape": "relaxed", "fingers": [-0.05, -0.99, 0.10], "palm": [ 1.0, 0.0, 0.0] },
+        "screen_right": { "upper": [-0.25, -0.40, 0.88], "lower": [-0.85,  0.40, 0.35], "shape": "heart",   "fingers": [-0.15,  0.99, 0.00], "palm": [-1.0, 0.0,  0.0] },
+        "spine_roll": -12, "spine_pitch": 3, "head_roll": -6
+      },
+      "user_templates": [
+        { "screen_left":  { "upper": [ 0.25, -0.40, 0.88], "lower": [ 0.85,  0.40, 0.35] },
+          "screen_right": { "upper": [ 0.20, -0.98, 0.00], "lower": [ 0.10, -0.98, 0.15] },
+          "shoulder_roll": 0, "mirror": false }
+      ]
+    },
+    {
+      "id": 1, "key": "big_heart", "label": "大きなハート",
+      "talent": {
+        "screen_left":  { "upper": [-0.05, -0.80, 0.60], "lower": [-0.75, -0.25, 0.55], "shape": "open", "fingers": [-0.35, -0.94, 0.10], "palm": [ 0.0,  1.0, 0.0] },
+        "screen_right": { "upper": [-0.15,  0.98, 0.10], "lower": [-0.90,  0.40, 0.15], "shape": "open", "fingers": [-0.75, -0.65, 0.10], "palm": [ 0.0, -1.0, 0.0] },
+        "spine_roll": -20, "spine_pitch": 0
+      },
+      "user_templates": [
+        { "screen_left":  { "upper": [ 0.15,  0.98, 0.10], "lower": [ 0.90,  0.40, 0.15] },
+          "screen_right": { "upper": [ 0.05, -0.80, 0.60], "lower": [ 0.75, -0.25, 0.55] },
+          "shoulder_roll": 20, "mirror": false }
+      ]
+    },
+    {
+      "id": 2, "key": "double_peace", "label": "両手ピース",
+      "talent": {
+        "screen_left":  { "upper": [-0.40, -0.85, 0.35], "lower": [ 0.05,  0.99, 0.10], "shape": "peace", "fingers": [-0.10, 0.99, 0.00], "palm": [ 0.0, 0.0, 1.0] },
+        "screen_right": { "upper": [ 0.40, -0.85, 0.35], "lower": [-0.05,  0.99, 0.10], "shape": "peace", "fingers": [ 0.10, 0.99, 0.00], "palm": [ 0.0, 0.0, 1.0] },
+        "spine_roll": -8, "spine_pitch": 5
+      },
+      "user_templates": [
+        { "screen_left":  { "upper": [-0.40, -0.85, 0.35], "lower": [ 0.05,  0.99, 0.10] },
+          "screen_right": { "upper": [ 0.40, -0.85, 0.35], "lower": [-0.05,  0.99, 0.10] },
+          "shoulder_roll": 0, "mirror": false }
+      ]
+    },
+    {
+      "id": 3, "key": "peace", "label": "ピース",
+      "talent": {
+        "screen_left":  { "upper": [-0.40, -0.85, 0.35], "lower": [ 0.05,  0.99, 0.10], "shape": "peace",   "fingers": [-0.10,  0.99, 0.00], "palm": [ 0.0, 0.0, 1.0] },
+        "screen_right": { "upper": [ 0.20, -0.98, 0.00], "lower": [ 0.10, -0.98, 0.15], "shape": "relaxed", "fingers": [ 0.05, -0.99, 0.10], "palm": [-1.0, 0.0, 0.0] },
+        "spine_roll": -5, "spine_pitch": 3
+      },
+      "user_templates": [
+        { "screen_left":  { "upper": [-0.40, -0.85, 0.35], "lower": [ 0.05,  0.99, 0.10] },
+          "screen_right": { "upper": [ 0.20, -0.98, 0.00], "lower": [ 0.10, -0.98, 0.15] },
+          "shoulder_roll": 0, "mirror": true }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+# ---- 公開しないもの ----
+# VRM モデル(配布条件: 再配布禁止)
+/VRM/
+/PoseSync/Assets/ThirdParty/
+/PoseSync/Assets/ThirdParty.meta
+# 撮影写真・検証サンプル・判定ログ(個人の顔・骨格データ)
+/data/
+# タレントモデルのレンダー画像・カメラ映像を含む確認画像
+/docs/pose_previews/
+/docs/*.png
+# MediaPipe のモデル(README の手順でダウンロード)
+/server/models/
+
+# ---- Unity ----
+/PoseSync/[Ll]ibrary/
+/PoseSync/[Tt]emp/
+/PoseSync/[Oo]bj/
+/PoseSync/[Bb]uild/
+/PoseSync/[Bb]uilds/
+/PoseSync/[Ll]ogs/
+/PoseSync/[Uu]ser[Ss]ettings/
+/PoseSync/[Mm]emoryCaptures/
+/PoseSync/[Rr]ecordings/
+/PoseSync/.vs/
+/PoseSync/.idea/
+/PoseSync/*.csproj
+/PoseSync/*.sln
+/PoseSync/*.slnx
+/PoseSync/*.user
+/PoseSync/*.pidb
+/PoseSync/*.booproj
+/PoseSync/*.svd
+/PoseSync/*.pdb
+/PoseSync/*.mdb
+/PoseSync/*.opendb
+/PoseSync/*.VC.db
+/PoseSync/sysinfo.txt
+/PoseSync/Assets/Plugins/Editor/JetBrains*
+/PoseSync/Assets/AssetStoreTools*
+
+# ---- Python ----
+/server/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# ---- OS / Editor ----
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
