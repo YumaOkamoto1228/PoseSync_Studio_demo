@@ -19,6 +19,9 @@ namespace PoseSync.EditorTools
         const string Root = "Assets/PoseSync";
         const string ScenePath = Root + "/Scenes/Booth.unity";
         const string MaterialPath = Root + "/Materials/Mannequin.mat";
+        // 人型の大きさ(px, 1080 の舞台基準)。2026-10-24 の見た目(約 177×365)を全体 1.3 倍、横はさらに 1.3 倍
+        static readonly Vector2 SilhouetteSize = new Vector2(300f, 475f);
+        const string SilhouettePath = "Assets/ThirdParty/Guide/guide_silhouette.png"; // 再配布禁止のため ThirdParty(無ければ表示しない)
         const float StageSize = 1080f;
 
         [MenuItem("PoseSync/Build Booth Scene")]
@@ -141,6 +144,7 @@ namespace PoseSync.EditorTools
             mainCam.backgroundColor = Color.black;
             mainCam.cullingMask = 0;
             mainCam.gameObject.AddComponent<UniversalAdditionalCameraData>();
+            mainCam.gameObject.AddComponent<AudioListener>(); // これが無いとボイス・効果音が一切聞こえない
 
             // 仮マネキン(VRM が入ったら PoseSync > Use Selected As Talent で差し替える)
             var rig = BuildMannequin();
@@ -215,6 +219,14 @@ namespace PoseSync.EditorTools
             pr.anchorMin = pr.anchorMax = pr.pivot = new Vector2(0.5f, 0f); // 中央下
             pr.anchoredPosition = new Vector2(0f, 30f);
 
+            // 結果画面で「もう一度」の右に並ぶ「終了する」ボタン(控えめな色)
+            var (exitButton, _) = NewButton("ExitButton", stage, "終了する", new Vector2(400f, 110f));
+            exitButton.GetComponent<Image>().color = new Color(0.55f, 0.55f, 0.62f);
+            var er = (RectTransform)exitButton.transform;
+            er.anchorMin = er.anchorMax = er.pivot = new Vector2(0.5f, 0f);
+            er.anchoredPosition = new Vector2(230f, 30f);
+            exitButton.gameObject.SetActive(false);
+
             var startPanel = NewImage("StartPanel", stage, new Color(0f, 0f, 0f, 0.65f));
             Stretch(startPanel.rectTransform);
             var title = NewText("Title", startPanel.transform, "PoseSync Studio", 96, TextAnchor.MiddleCenter);
@@ -259,6 +271,8 @@ namespace PoseSync.EditorTools
             flow.startButton = startButton;
             flow.primaryButton = primary;
             flow.primaryButtonLabel = primaryLabel;
+            flow.exitButton = exitButton;
+            flow.buttonPairOffset = 230f;
             flow.standingGuide = standingGuide;
 
             var look = booth.AddComponent<BoothLook>();
@@ -291,6 +305,33 @@ namespace PoseSync.EditorTools
             var shutter = booth.AddComponent<ShutterPlayer>();
             shutter.view = shutterView;
             shutter.audioSource = booth.AddComponent<AudioSource>();
+            // ボイス用(シャッター音とは別の AudioSource。順番待ちと間隔は VoicePlayer が管理する)
+            var voiceSource = booth.AddComponent<AudioSource>();
+            voiceSource.playOnAwake = false;
+            var voice = booth.AddComponent<VoicePlayer>();
+            voice.source = voiceSource;
+            voice.voices = new GuideVoices
+            {
+                start = Clip("voice_start"),
+                standInFrame = Clip("voice_stand_in_frame"),
+                keep = Clip("voice_keep"),
+                thinkPose = Clip("voice_think_pose"),
+                decided = Clip("voice_decided"),
+                count3 = Clip("voice_count3"),
+                count2 = Clip("voice_count2"),
+                count1 = Clip("voice_count1"),
+                result = Clip("voice_result"),
+                bye = Clip("voice_bye"),
+            };
+            flow.voice = voice;
+
+            // 背景の BGM(ループ。ボイスの間は音量を下げる)。素材は ThirdParty、無ければ鳴らさない
+            var bgmObject = new GameObject("BGM", typeof(AudioSource));
+            var bgm = bgmObject.AddComponent<BgmPlayer>();
+            bgm.clip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/ThirdParty/Bgm/bgm_sunny_time.mp3");
+            bgm.voice = voice;
+            if (bgm.clip == null) Debug.LogWarning("[PoseSync] BGM が見つかりません: Assets/ThirdParty/Bgm/bgm_sunny_time.mp3");
+            shutter.closeSound = AssetDatabase.LoadAssetAtPath<AudioClip>(VoiceFolder + "/se_shutter.mp3");
             shutter.audioSource.playOnAwake = false;
             shutter.closeFrames = LoadFrames(ShutterImportSettings.Folder + "/Close");
             shutter.openFrames = LoadFrames(ShutterImportSettings.Folder + "/Open");
@@ -390,6 +431,21 @@ namespace PoseSync.EditorTools
             var top = Border(frame, "Top", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, w), c);
             var left = Border(frame, "Left", new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(w, 0f), c);
             var right = Border(frame, "Right", new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(w, 0f), c);
+
+            // 頭と肩の位置の目安(点線の人型)。枠に対する位置で置くので、BoothLook で枠を動かしても付いてくる
+            var silhouetteTex = AssetDatabase.LoadAssetAtPath<Texture2D>(SilhouettePath);
+            if (silhouetteTex != null)
+            {
+                var silhouette = NewRawImage("Silhouette", frame);
+                silhouette.texture = silhouetteTex;
+                silhouette.color = new Color(0f, 0f, 0f, 0.75f); // 画像は白。色はここで決める
+                var sr = silhouette.rectTransform;
+                // 枠の横中央・上端は枠の高さの 93% に固定し、大きさは px で指定(大きくすると下に伸びる)
+                sr.anchorMin = sr.anchorMax = new Vector2(0.5f, 0.93f);
+                sr.pivot = new Vector2(0.5f, 1f);
+                sr.anchoredPosition = Vector2.zero;
+                sr.sizeDelta = SilhouetteSize;
+            }
             return (guide.gameObject, frame, new Graphic[] { top, left, right });
         }
 
@@ -460,6 +516,16 @@ namespace PoseSync.EditorTools
             r.anchorMin = min;
             r.anchorMax = max;
             r.offsetMin = r.offsetMax = Vector2.zero;
+        }
+
+        // ボイス・効果音(再配布禁止のため ThirdParty。無い物は鳴らさない)
+        const string VoiceFolder = "Assets/ThirdParty/Voice";
+
+        static AudioClip Clip(string name)
+        {
+            var clip = AssetDatabase.LoadAssetAtPath<AudioClip>($"{VoiceFolder}/{name}.wav");
+            if (clip == null) Debug.LogWarning($"[PoseSync] ボイスが見つかりません: {name}");
+            return clip;
         }
 
         /// <summary>フォルダ内の画像をファイル名順に読む(連番 PNG 用)。フォルダが無ければ空。</summary>

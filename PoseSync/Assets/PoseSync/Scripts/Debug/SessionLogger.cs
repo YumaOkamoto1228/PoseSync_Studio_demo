@@ -98,8 +98,9 @@ namespace PoseSync
             if (current != null)
                 current.steps.Add(new StepTime { step = lastState.ToString(), seconds = Round(Time.time - stateEnteredAt) });
 
-            if (s == BoothState.Idle) Finish();
-            else if (current == null && s == BoothState.Standing) Begin();
+            // 「もう一度」は結果画面から立ち位置に戻るので、そこで1回分を閉じて次の記録を始める
+            if (s == BoothState.Idle || (s == BoothState.Standing && lastState == BoothState.Result)) Finish();
+            if (current == null && s == BoothState.Standing) Begin();
 
             lastState = s;
             stateEnteredAt = Time.time;

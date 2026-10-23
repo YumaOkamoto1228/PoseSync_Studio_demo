@@ -46,6 +46,18 @@ namespace PoseSync
         public Button startButton;
         public Button primaryButton;
         public Text primaryButtonLabel;
+        [Tooltip("結果画面で「もう一度」の隣に出す「終了する」ボタン")]
+        public Button exitButton;
+        [Tooltip("2つのボタンを並べる時の、中央からのずれ(px)")]
+        public float buttonPairOffset = 230f;
+
+        [Header("ボイス")]
+        [Tooltip("ガイドのボイス(順番に1つずつ・間を 0.5 秒以上空けて流す)。無ければ文字だけ")]
+        public VoicePlayer voice;
+        [Tooltip("ポーズを考える画面に入ってから「決まったかな?」を流すまでの秒数")]
+        public float decidedVoiceDelay = 9f;
+        [Tooltip("ボイスが無い時に、終了のあいさつを表示する時間(秒)")]
+        public float exitMessageSeconds = 2f;
         public GameObject standingGuide;
         public Text messageText;
         public Text countdownText;
@@ -88,7 +100,7 @@ namespace PoseSync
         IPoseEstimator Estimator => poseEstimator as IPoseEstimator;
         ISegmenter Segmenter => segmenter as ISegmenter;
 
-        bool advanceRequested;
+        bool advanceRequested, exitRequested;
         CancellationTokenSource sessionCts;
         Vector2 talentShownPos;
 
@@ -96,8 +108,17 @@ namespace PoseSync
         {
             if (startButton != null) startButton.onClick.AddListener(RequestAdvance);
             if (primaryButton != null) primaryButton.onClick.AddListener(RequestAdvance);
+            if (exitButton != null) exitButton.onClick.AddListener(RequestExit);
             if (talentView != null) talentShownPos = talentView.anchoredPosition;
             if (Estimator == null) Debug.LogError("[BoothFlow] poseEstimator に IPoseEstimator がありません", this);
+
+            // AudioListener が無いとボイス・効果音が一切聞こえない(古いシーンにも対応するため実行時に補う)
+            if (FindFirstObjectByType<AudioListener>() == null)
+            {
+                var cam = Camera.main != null ? Camera.main.gameObject : gameObject;
+                cam.AddComponent<AudioListener>();
+                Debug.Log($"[BoothFlow] AudioListener が無かったので {cam.name} に追加しました");
+            }
         }
 
         void Start() => Restart();
@@ -120,6 +141,9 @@ namespace PoseSync
 
         public void RequestAdvance() => advanceRequested = true;
 
+        /// <summary>結果画面の「終了する」。</summary>
+        public void RequestExit() => exitRequested = true;
+
         public void Restart()
         {
             sessionCts?.Cancel();
@@ -132,11 +156,17 @@ namespace PoseSync
             try
             {
                 await IdleStep(ct);
-                await StandingStep(ct);
-                await PoseGuideStep(ct);
-                await CountdownStep(ct);
-                await JudgeStep(ct);
-                await ResultStep(ct);
+                // 「もう一度」なら立ち位置ガイドから撮り直し、「終了する」ならあいさつして待機画面へ
+                while (true)
+                {
+                    await StandingStep(ct);
+                    await PoseGuideStep(ct);
+                    await CountdownStep(ct);
+                    await JudgeStep(ct);
+                    if (!await ResultStep(ct)) break;
+                    ClearShot();
+                }
+                await ExitStep(ct);
                 Restart();
             }
             catch (OperationCanceledException) { }
@@ -156,10 +186,14 @@ namespace PoseSync
         async Awaitable StandingStep(CancellationToken ct)
         {
             State = BoothState.Standing;
-            await SlideTalent(true, ct);
+            if (talentView.anchoredPosition != ShownTalentPos) await SlideTalent(true, ct); // 撮り直しの時はもう出ている
             standingGuide.SetActive(true);
             const string Guide = "枠の中に、頭から腰までが入るように立ってね";
             SetMessage(Guide);
+            // 「撮影するよ」→(0.5 秒)→「枠に収まるように立ってね」。撮り直しの時も同じ
+            Voice(v => v.start);
+            Voice(v => v.standInFrame);
+            bool keepPlayed = false;
 
             // 枠の中に立ったら自動で撮影へ進む。判定できない時(サーバー未起動など)だけボタンを出す
             bool auto = standingDetector != null && standingDetector.isActiveAndEnabled;
@@ -184,6 +218,11 @@ namespace PoseSync
                     {
                         wasInPosition = standingDetector.InPosition;
                         SetMessage(wasInPosition ? "その場でキープ！" : Guide);
+                        if (wasInPosition && !keepPlayed)
+                        {
+                            Voice(v => v.keep); // 前のボイスが流れていれば、終わって 0.5 秒後に流れる
+                            keepPlayed = true;
+                        }
                     }
                 }
                 await Awaitable.NextFrameAsync(ct);
@@ -201,12 +240,20 @@ namespace PoseSync
             SetMessage("ポーズを考えて！");
             SetPrimary(null); // 見本を見せている間はボタンを出さない(Space キーでは先に進める)
             advanceRequested = false;
+            Voice(v => v.thinkPose);
 
             int i = 0;
             float next = 0f;
+            float stepStart = Time.time;
+            bool decidedPlayed = false;
             float end = Time.time + guidePoseInterval * PoseLibrary.Count; // 一巡したら自動で撮影へ
             while (!advanceRequested && Time.time < end)
             {
+                if (!decidedPlayed && Time.time - stepStart >= decidedVoiceDelay)
+                {
+                    Voice(v => v.decided); // 「決まったかな?」
+                    decidedPlayed = true;
+                }
                 if (Time.time >= next)
                 {
                     var pose = PoseLibrary.Data.poses[i % PoseLibrary.Count];
@@ -225,16 +272,33 @@ namespace PoseSync
         {
             State = BoothState.Countdown;
             SetMessage("ポーズをキープ!");
-            idleMotion.Play(countdownSeconds);
             if (frameRecorder != null) frameRecorder.StartRecording(); // 直近 capacity 枚だけ残る
 
+            // 正確に 1 秒ごと。数字が変わる瞬間にそのボイスをすぐ流す(カウントダウンだけは順番待ち・0.5 秒の間隔を無視)
+            var g = voice != null ? voice.voices : null;
+            var counts = g != null ? new[] { g.count3, g.count2, g.count1 } : new AudioClip[0];
+            idleMotion.Play(countdownSeconds);
             float end = Time.time + countdownSeconds;
+            int shown = -1;
             while (Time.time < end)
             {
-                countdownText.text = Mathf.CeilToInt(end - Time.time).ToString();
+                int n = Mathf.CeilToInt(end - Time.time);
+                if (n != shown)
+                {
+                    shown = n;
+                    countdownText.text = n.ToString();
+                    int index = counts.Length - n; // 3 → 0, 2 → 1, 1 → 2
+                    if (index >= 0 && index < counts.Length) voice.PlayImmediate(counts[index]);
+                }
                 await Awaitable.NextFrameAsync(ct);
             }
             countdownText.text = "";
+        }
+
+        /// <summary>ガイドのボイスを順番待ちに加える(素材が無い時は何もしない)。</summary>
+        void Voice(Func<GuideVoices, AudioClip> pick)
+        {
+            if (voice != null) voice.Play(pick(voice.voices));
         }
 
         // ---- 6-7. シャッター → 判定 → ポーズ確定 ---------------------------
@@ -274,6 +338,8 @@ namespace PoseSync
             else
             {
                 Flash(ct);
+                if (shutter != null && shutter.closeSound != null && shutter.audioSource != null)
+                    shutter.audioSource.PlayOneShot(shutter.closeSound); // シャッター音だけは鳴らす
                 if (LastPhoto != null)
                 {
                     resultPhoto.texture = LastPhoto;
@@ -324,23 +390,55 @@ namespace PoseSync
         }
 
         // ---- 8. 結果表示 --------------------------------------------------
-        async Awaitable ResultStep(CancellationToken ct)
+        /// <summary>結果を見せて「もう一度」(true)か「終了する」(false)を待つ。Space = もう一度。</summary>
+        async Awaitable<bool> ResultStep(CancellationToken ct)
         {
             State = BoothState.Result;
             // 判定したポーズ名は出さない(写真を見てもらう)
             SetMessage("撮影完了!");
-            SetPrimary("もう一度");
-            await WaitForAdvance(ct);
+            Voice(v => v.result); // 「上手く撮れたかな?」(シャッターが開いて写真が見えてから)
+            SetPrimary("もう一度", exitButton != null);
+            if (exitButton != null) exitButton.gameObject.SetActive(true);
+
+            advanceRequested = exitRequested = false;
+            while (!advanceRequested && !exitRequested) await Awaitable.NextFrameAsync(ct);
+            bool retry = advanceRequested;
+            advanceRequested = exitRequested = false;
+
+            SetPrimary(null);
+            if (exitButton != null) exitButton.gameObject.SetActive(false);
+            SetMessage("");
+            return retry;
+        }
+
+        // ---- 9. 終了(あいさつのボイス → 待機画面へ) ---------------------------
+        async Awaitable ExitStep(CancellationToken ct)
+        {
+            SetMessage("また撮ろうね！");
+            if (voice != null && voice.voices.bye != null)
+                await voice.PlayAndWaitEnd(voice.voices.bye, ct); // 「また撮ろうね」を流し終わってから戻る
+            else
+                await Awaitable.WaitForSecondsAsync(exitMessageSeconds, ct);
             SetMessage("");
             if (compositeView != null) compositeView.gameObject.SetActive(false);
             talentView.gameObject.SetActive(true);
             await SlideTalent(false, ct);
         }
 
+        /// <summary>撮り直しの前に、結果画面の表示を消してタレントを待機の立ち姿に戻す。</summary>
+        void ClearShot()
+        {
+            if (compositeView != null) compositeView.gameObject.SetActive(false);
+            resultPhoto.gameObject.SetActive(false);
+            talentView.gameObject.SetActive(true);
+            talent.SetImmediate(PoseLibrary.Rest.ToTalentPose());
+        }
+
         // ---- helpers ------------------------------------------------------
         void ResetView()
         {
-            advanceRequested = false;
+            advanceRequested = exitRequested = false;
+            if (exitButton != null) exitButton.gameObject.SetActive(false);
             startPanel.SetActive(false);
             standingGuide.SetActive(false);
             resultPhoto.gameObject.SetActive(false);
@@ -357,6 +455,7 @@ namespace PoseSync
             talentView.anchoredPosition = HiddenTalentPos();
             flash.color = new Color(1f, 1f, 1f, 0f);
             if (shutter != null) shutter.Hide(); // 閉じている途中で Esc を押された時
+            if (voice != null) voice.StopAll();
         }
 
         async Awaitable WaitForAdvance(CancellationToken ct)
@@ -442,10 +541,13 @@ namespace PoseSync
             poseLabelText.gameObject.SetActive(!string.IsNullOrEmpty(text));
         }
 
-        void SetPrimary(string label)
+        /// <summary>中央下のボタン。besideExit=true の時は「終了する」ボタンと横に並ぶよう左へずらす。</summary>
+        void SetPrimary(string label, bool besideExit = false)
         {
             primaryButton.gameObject.SetActive(label != null);
             if (label != null) primaryButtonLabel.text = label;
+            var r = (RectTransform)primaryButton.transform;
+            r.anchoredPosition = new Vector2(besideExit ? -buttonPairOffset : 0f, r.anchoredPosition.y);
         }
     }
 }

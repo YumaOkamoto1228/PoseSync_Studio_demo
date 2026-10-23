@@ -63,7 +63,21 @@ namespace PoseSync
                 if (logger != null) logger.SetIntended(target.id); // 記録係の数字キー入力の代わり
                 var comp = flow.compositor;
                 log.AppendLine($"  合成: {(flow.LastComposite != null ? $"{flow.LastComposite.width}x{flow.LastComposite.height} → {comp.LastSavedPath}" : "なし(カメラ映像なし?)")}");
-                flow.RequestAdvance();                       // もう一度
+                if (run == 0)
+                {
+                    flow.RequestAdvance();                   // もう一度 → 立ち位置ガイドに戻ること
+                    yield return WaitState(BoothState.Standing);
+                    log.AppendLine($"  もう一度 → {flow.State}");
+                    flow.RequestAdvance();                   // ボタン操作で撮影へ(自動判定はサーバー無しでは使えない)
+                    yield return WaitState(BoothState.PoseGuide);
+                    yield return WaitState(BoothState.Countdown);
+                    debug.Force(target.id);
+                    yield return WaitState(BoothState.Result);
+                    yield return new WaitForSeconds(0.5f);
+                }
+                flow.RequestExit();                          // 終了する → あいさつ → 待機画面
+                yield return WaitState(BoothState.Idle);
+                log.AppendLine($"  終了する → {flow.State}");
                 yield return new WaitForSeconds(flow.talentSlideSeconds + 0.2f);
             }
             Report = log.ToString();

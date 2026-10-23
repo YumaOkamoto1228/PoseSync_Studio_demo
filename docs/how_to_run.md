@@ -67,6 +67,16 @@ Play 中の変更は停止すると元に戻る。決まった値は控えてお
 
 ## 9. シャッター演出
 - 素材(再配布禁止)はリポジトリに含まれない。手元の動画から連番 PNG を作る:
-  `server` で `.venv\Scripts\python tools\convert_shutter.py ..\shutter01\closecam.mov ..\shutter01\opencam.mov`
+  `server` で `.venv\Scripts\python tools\convert_shutter.py ..\素材\shutter01\closecam.mov ..\素材\shutter01\opencam.mov`
   → `PoseSync/Assets/ThirdParty/Shutter/Close|Open/`。その後 `PoseSync > Build Booth Scene`。
 - 素材が無い時は白フラッシュになる。効果音を付ける時は `Booth` の **ShutterPlayer** の closeSound / openSound に設定する。
+
+## 10. ガイド音声・効果音
+- `PoseSync/Assets/ThirdParty/Voice/` に次の名前で置き、`PoseSync > Build Booth Scene`(無いものは鳴らさない):
+  `voice_start` 撮影するよ / `voice_stand_in_frame` 枠に収まるように立ってね / `voice_keep` その場でキープ / `voice_think_pose` ポーズを考えてね /
+  `voice_decided` 決まったかな? / `voice_count3`・`voice_count2`・`voice_count1` / `voice_result` 上手く撮れたかな? / `voice_bye` また撮ろうね(以上 .wav)、`se_shutter.mp3` シャッター音
+- ボイスの間隔(既定 0.5 秒)は `Booth` の **VoicePlayer** の minGap、「決まったかな?」までの秒数は **BoothFlow** の decidedVoiceDelay。
+
+## 11. BGM
+- `PoseSync/Assets/ThirdParty/Bgm/bgm_sunny_time.mp3`(「Sunny Time」modus 様)をループで流す。無ければ鳴らさない。
+- 音量は シーンの `BGM` オブジェクトの **BgmPlayer**:`volume`(既定 0.35)、ボイスが流れている間は `duckRatio`(既定 0.5 倍)まで下げる。
