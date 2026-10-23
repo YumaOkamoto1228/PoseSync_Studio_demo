@@ -21,7 +21,10 @@ namespace PoseSync
         public AudioClip openSound;
         public AudioSource audioSource;
 
-        public bool HasFrames => closeFrames != null && closeFrames.Length > 0 && openFrames != null && openFrames.Length > 0;
+        // シーンには素材への参照だけが残るので、素材の無い環境(clone 直後など)では要素が null になる
+        public bool HasFrames => Valid(closeFrames) && Valid(openFrames);
+
+        static bool Valid(Texture2D[] frames) => frames != null && frames.Length > 0 && System.Array.TrueForAll(frames, f => f != null);
         public bool IsClosed { get; private set; }
 
         void Awake() => Hide();
