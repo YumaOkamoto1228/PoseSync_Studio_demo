@@ -27,6 +27,8 @@ namespace PoseSync
         public MonoBehaviour segmenter;
         [Tooltip("立ち位置の自動判定。無い・使えない時は「撮影開始！」ボタンで進む")]
         public StandingDetector standingDetector;
+        [Tooltip("撮影時のシャッター演出。素材が無い時は白フラッシュ")]
+        public ShutterPlayer shutter;
         public PhotoCompositor compositor;
         [Tooltip("判定に使うフレーム数(シャッター直前〜シャッター)")]
         public int judgeFrameCount = 5;
@@ -241,17 +243,9 @@ namespace PoseSync
             State = BoothState.Judging;
             SetMessage("");
 
+            // 写真と判定用フレームはカメラ映像から直接取るので、この後シャッターを画面に重ねても写り込まない
             if (LastPhoto != null) Destroy(LastPhoto);
             LastPhoto = webcam.CaptureSquare(captureSize);
-            Flash(ct);
-            if (LastPhoto != null)
-            {
-                resultPhoto.texture = LastPhoto;
-                resultPhoto.gameObject.SetActive(true); // 判定中はライブ映像ではなく撮影した1枚を見せる
-            }
-
-            // 切り抜きは判定と並行して進める(撮影した1枚だけが対象、§6)
-            Awaitable<Texture2D> cutoutTask = Segmenter != null && LastPhoto != null ? Segmenter.CutoutAsync(LastPhoto) : null;
 
             // 判定にはシャッター直前の数フレーム + シャッターの瞬間を使い、多数決でまとめる(§5-5)
             List<Texture2D> frames;
@@ -267,8 +261,27 @@ namespace PoseSync
                 if (LastPhoto != null) frames.Add(LastPhoto);
             }
 
+            // 切り抜きと判定はサーバーで並行して進め、その間にシャッターを閉じる
             float t0 = Time.realtimeSinceStartup;
-            LastResult = await Estimator.JudgeAsync(frames);
+            Awaitable<Texture2D> cutoutTask = Segmenter != null && LastPhoto != null ? Segmenter.CutoutAsync(LastPhoto) : null;
+            Awaitable<PoseJudgeResult> judgeTask = Estimator.JudgeAsync(frames);
+
+            bool useShutter = shutter != null && shutter.HasFrames;
+            if (useShutter)
+            {
+                await shutter.CloseAsync(ct); // 閉じきったコマで止まり、合成が終わるまで閉じたまま
+            }
+            else
+            {
+                Flash(ct);
+                if (LastPhoto != null)
+                {
+                    resultPhoto.texture = LastPhoto;
+                    resultPhoto.gameObject.SetActive(true); // 判定中はライブ映像ではなく撮影した1枚を見せる
+                }
+            }
+
+            LastResult = await judgeTask;
             ct.ThrowIfCancellationRequested();
             Debug.Log($"[BoothFlow] judge id={LastResult.poseId} dist={LastResult.distance:F3} fallback={LastResult.fallback} " +
                       $"latency={(Time.realtimeSinceStartup - t0) * 1000f:F0}ms");
@@ -277,8 +290,16 @@ namespace PoseSync
             if (idleMotion.enabled) idleMotion.enabled = false;
             talent.hipsOffset = Vector3.zero;
             talent.hipsRoll = 0f;
-            talent.TransitionTo(pose.ToTalentPose(), poseTransitionSeconds);
-            await Awaitable.WaitForSecondsAsync(poseTransitionSeconds, ct);
+            if (useShutter)
+            {
+                // シャッターの裏で切り替えるので遷移アニメは不要(待ち時間を短くする)
+                talent.SetImmediate(pose.ToTalentPose());
+            }
+            else
+            {
+                talent.TransitionTo(pose.ToTalentPose(), poseTransitionSeconds);
+                await Awaitable.WaitForSecondsAsync(poseTransitionSeconds, ct);
+            }
 
             // ---- 合成(§6): 背景 + 切り抜いた撮影者 + 選ばれたポーズのタレント ----
             if (lastCutout != null) Destroy(lastCutout);
@@ -293,6 +314,11 @@ namespace PoseSync
                 compositeView.gameObject.SetActive(true);
                 resultPhoto.gameObject.SetActive(false);
                 talentView.gameObject.SetActive(false); // 写真に含まれている
+            }
+            if (useShutter)
+            {
+                Debug.Log($"[BoothFlow] シャッターを閉じていた時間 {(Time.realtimeSinceStartup - t0) * 1000f:F0}ms");
+                await shutter.OpenAsync(ct); // 開くと合成した写真が見える
             }
             ShotCompleted?.Invoke(lastCutout != null);
         }
@@ -330,6 +356,7 @@ namespace PoseSync
             talent.SetImmediate(PoseLibrary.Rest.ToTalentPose());
             talentView.anchoredPosition = HiddenTalentPos();
             flash.color = new Color(1f, 1f, 1f, 0f);
+            if (shutter != null) shutter.Hide(); // 閉じている途中で Esc を押された時
         }
 
         async Awaitable WaitForAdvance(CancellationToken ct)

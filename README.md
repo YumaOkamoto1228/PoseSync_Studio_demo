@@ -40,7 +40,16 @@ curl -L -o models\selfie_multiclass_256x256.tflite https://storage.googleapis.co
 
 詳しくは [docs/how_to_run.md](docs/how_to_run.md)、設計の経緯は [docs/design_changes.md](docs/design_changes.md)。
 
+## 使用素材(クレジット)
+| 種類 | 素材 | 制作・配布元 | 備考 |
+|---|---|---|---|
+| 3D モデル | 「雪花ラミィ」「百鬼あやめ」 | 風籟 ~Furai~ 様 | 再配布禁止・商用利用不可 |
+| カメラシャッター | シャッターの動画素材 | [みりんの動画素材](https://miirriin.com/) | 再配布禁止 |
+
+いずれも再配布が禁止されているため、このリポジトリには含めていません。
+
 ## 公開していないもの
 - VRM モデル(配布条件により再配布禁止)と、そのレンダー画像
+- シャッター素材(配布条件により再配布禁止。`server/tools/convert_shutter.py` で手元の動画から連番 PNG を作る)
 - 撮影写真・検証用サンプル(個人データ)
 - MediaPipe のモデルファイル(上の手順でダウンロード)

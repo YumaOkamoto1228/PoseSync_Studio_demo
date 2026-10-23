@@ -122,6 +122,7 @@ namespace PoseSync.EditorTools
         {
             EnsureFolder(Root + "/Scenes");
             EnsureFolder(Root + "/Materials");
+            ShutterImportSettings.EnsureImported();
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -224,6 +225,11 @@ namespace PoseSync.EditorTools
             var sr = (RectTransform)startButton.transform;
             sr.anchorMin = sr.anchorMax = sr.pivot = new Vector2(0.5f, 0.32f);
 
+            // シャッター(画面全体を覆うので、状態表示以外のすべての上に置く)
+            var shutterView = NewRawImage("ShutterView", stage);
+            Stretch(shutterView.rectTransform);
+            shutterView.gameObject.SetActive(false);
+
             var status = NewText("Status", stage, "", 20, TextAnchor.LowerLeft);
             SetAnchors(status.rectTransform, new Vector2(0.01f, 0f), new Vector2(0.99f, 0.03f));
             status.raycastTarget = false;
@@ -280,6 +286,16 @@ namespace PoseSync.EditorTools
             standing.webcam = webcam;
             standing.look = look;
             flow.standingDetector = standing;
+
+            // シャッター演出(素材は再配布禁止のため ThirdParty。無ければ白フラッシュ)
+            var shutter = booth.AddComponent<ShutterPlayer>();
+            shutter.view = shutterView;
+            shutter.audioSource = booth.AddComponent<AudioSource>();
+            shutter.audioSource.playOnAwake = false;
+            shutter.closeFrames = LoadFrames(ShutterImportSettings.Folder + "/Close");
+            shutter.openFrames = LoadFrames(ShutterImportSettings.Folder + "/Open");
+            flow.shutter = shutter;
+            Debug.Log($"[PoseSync] シャッター素材: 閉じる {shutter.closeFrames.Length} 枚 / 開く {shutter.openFrames.Length} 枚");
 
             // 簡易ユーザーテスト用の体験ログ(data/sessions/*.jsonl)
             var logger = booth.AddComponent<SessionLogger>();
@@ -444,6 +460,17 @@ namespace PoseSync.EditorTools
             r.anchorMin = min;
             r.anchorMax = max;
             r.offsetMin = r.offsetMax = Vector2.zero;
+        }
+
+        /// <summary>フォルダ内の画像をファイル名順に読む(連番 PNG 用)。フォルダが無ければ空。</summary>
+        static Texture2D[] LoadFrames(string folder)
+        {
+            if (!AssetDatabase.IsValidFolder(folder)) return new Texture2D[0];
+            var paths = new System.Collections.Generic.List<string>();
+            foreach (var guid in AssetDatabase.FindAssets("t:Texture2D", new[] { folder }))
+                paths.Add(AssetDatabase.GUIDToAssetPath(guid));
+            paths.Sort(System.StringComparer.Ordinal);
+            return paths.ConvertAll(AssetDatabase.LoadAssetAtPath<Texture2D>).ToArray();
         }
 
         static void EnsureFolder(string path)

@@ -1,6 +1,7 @@
 # ---- 公開しないもの ----
-# VRM モデル(配布条件: 再配布禁止)
+# VRM モデル・シャッター素材(配布条件: 再配布禁止)
 /VRM/
+/shutter01/
 /PoseSync/Assets/ThirdParty/
 /PoseSync/Assets/ThirdParty.meta
 # 撮影写真・検証サンプル・判定ログ(個人の顔・骨格データ)

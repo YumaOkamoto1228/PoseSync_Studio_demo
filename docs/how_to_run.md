@@ -64,3 +64,9 @@ Play 中の変更は停止すると元に戻る。決まった値は控えてお
 - 撮影するたびに元の写真が `data/photos/raw/` に保存される(PC 内のみ)。
 - `server` で `.venv\Scripts\python tools\cutout_compare.py` → `docs/cutout_compare.png`(新しい6枚 × 4方式)。
 - 良かった方式で起動する:例 `.venv\Scripts\python app.py --extra-seg deeplab`
+
+## 9. シャッター演出
+- 素材(再配布禁止)はリポジトリに含まれない。手元の動画から連番 PNG を作る:
+  `server` で `.venv\Scripts\python tools\convert_shutter.py ..\shutter01\closecam.mov ..\shutter01\opencam.mov`
+  → `PoseSync/Assets/ThirdParty/Shutter/Close|Open/`。その後 `PoseSync > Build Booth Scene`。
+- 素材が無い時は白フラッシュになる。効果音を付ける時は `Booth` の **ShutterPlayer** の closeSound / openSound に設定する。
