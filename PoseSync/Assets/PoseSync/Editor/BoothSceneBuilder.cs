@@ -44,32 +44,93 @@ namespace PoseSync.EditorTools
             BuildWithTalent(i >= 0 && i + 1 < args.Length ? args[i + 1] : "");
         }
 
+        /// <summary>
+        /// Assets/ThirdParty/VRM のすべての VRM をシーンに置き、TalentSwitcher で切り替えられるようにする。
+        /// keyword に一致するモデルを最初(起動時)のタレントにする。VRM が無ければマネキンのまま。
+        /// </summary>
         static void BuildWithTalent(string keyword)
         {
             BuildScene();
-            var prefab = FindVrmPrefab(keyword);
-            if (prefab == null)
+            var switcher = Object.FindFirstObjectByType<TalentSwitcher>();
+            var prefabs = FindVrmPrefabs();
+            if (prefabs.Count == 0)
             {
-                Debug.LogWarning($"[PoseSync] VRM が見つからないのでマネキンのままにします (keyword='{keyword}')");
+                Debug.LogWarning("[PoseSync] VRM が見つからないのでマネキンのままにします");
                 return;
             }
-            var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
-            SetTalent(instance);
-            EditorSceneManager.SaveScene(instance.scene);
+            // keyword に一致するモデルを先頭に(起動時のタレント・一覧の一番上)
+            prefabs.Sort((a, b) => Matches(b.path, keyword).CompareTo(Matches(a.path, keyword)));
+
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            foreach (var e in switcher.entries) if (e.model != null) e.model.SetActive(false); // 仮マネキンは使わない
+            switcher.entries.Clear();
+            GameObject first = null;
+            foreach (var (path, prefab) in prefabs)
+            {
+                var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+                PrepareTalent(instance);
+                string title = ReadVrmTitle(path) ?? instance.name;
+                switcher.entries.Add(new TalentSwitcher.Entry { displayName = title, model = instance });
+                if (first == null) first = instance;
+                else instance.SetActive(false);
+                Debug.Log($"[PoseSync] タレント: {title} ({path})");
+            }
+            switcher.defaultIndex = 0;
+            SetTalent(first);
+            EditorSceneManager.SaveScene(scene);
         }
 
-        static GameObject FindVrmPrefab(string keyword)
+        /// <summary>
+        /// VRM ファイルに書かれたモデル名(VRM0 の meta.title / VRM1 の meta.name)を読む。
+        /// 取り込み時に VRM1 へ変換されるとコンポーネントの種類が変わるので、ファイルの JSON から直接読む。
+        /// </summary>
+        static string ReadVrmTitle(string assetPath)
         {
+            try
+            {
+                var bytes = File.ReadAllBytes(assetPath);
+                int jsonLength = System.BitConverter.ToInt32(bytes, 12); // GLB: ヘッダ12バイト → JSON チャンク長
+                string json = System.Text.Encoding.UTF8.GetString(bytes, 20, jsonLength);
+                var m = System.Text.RegularExpressions.Regex.Match(json,
+                    "\"(?:VRM|VRMC_vrm)\"\\s*:\\s*\\{.*?\"meta\"\\s*:\\s*\\{[^{}]*?\"(?:title|name)\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"",
+                    System.Text.RegularExpressions.RegexOptions.Singleline);
+                return m.Success && m.Groups[1].Value.Length > 0 ? System.Text.RegularExpressions.Regex.Unescape(m.Groups[1].Value) : null;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"[PoseSync] VRM の名前を読めません: {assetPath} ({e.Message})");
+                return null;
+            }
+        }
+
+        static int Matches(string path, string keyword) =>
+            keyword.Length > 0 && Path.GetFileName(path).Contains(keyword, System.StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+
+        static System.Collections.Generic.List<(string path, GameObject prefab)> FindVrmPrefabs()
+        {
+            var list = new System.Collections.Generic.List<(string, GameObject)>();
             foreach (var guid in AssetDatabase.FindAssets("", new[] { "Assets/ThirdParty/VRM" }))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 if (!path.EndsWith(".vrm", System.StringComparison.OrdinalIgnoreCase)) continue;
-                if (keyword.Length > 0 && !Path.GetFileName(path).Contains(keyword, System.StringComparison.OrdinalIgnoreCase)) continue;
-                var go = AssetDatabase.LoadMainAssetAtPath(path) as GameObject;
-                Debug.Log($"[PoseSync] VRM: {path} -> {(go != null ? go.name : "(GameObject として読めない)")}");
-                if (go != null) return go;
+                if (AssetDatabase.LoadMainAssetAtPath(path) is GameObject go) list.Add((path, go));
             }
-            return null;
+            list.Sort((a, b) => string.CompareOrdinal(a.Item1, b.Item1));
+            return list;
+        }
+
+        /// <summary>モデルにタレント用のコンポーネント(腕・表情・待機モーション)を付ける。</summary>
+        static void PrepareTalent(GameObject model)
+        {
+            var framing = Object.FindFirstObjectByType<TalentFraming>();
+            model.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity); // +Z を向かせる(VRM の正面)
+            if (!model.TryGetComponent(out TalentRig rig)) rig = model.AddComponent<TalentRig>();
+            rig.autoFromAnimator = true;
+            rig.viewCamera = framing.GetComponent<Camera>();
+            if (!model.TryGetComponent(out TalentExpression _)) model.AddComponent<TalentExpression>();
+            if (!model.TryGetComponent(out ExcitedIdleMotion idle)) idle = model.AddComponent<ExcitedIdleMotion>();
+            idle.rig = rig;
+            idle.enabled = false;
         }
 
         [MenuItem("PoseSync/Use Selected As Talent")]
@@ -116,7 +177,10 @@ namespace PoseSync.EditorTools
             Undo.RecordObject(framing, "Use As Talent");
             framing.rig = rig;
 
-            if (oldRig != null && oldRig != rig) oldRig.gameObject.SetActive(false);
+            // 仮マネキンなど、切り替えの一覧に無い古いタレントは隠す
+            var switcher = Object.FindFirstObjectByType<TalentSwitcher>();
+            bool inRoster = switcher != null && oldRig != null && switcher.entries.Exists(e => e.model == oldRig.gameObject);
+            if (oldRig != null && oldRig != rig && !inRoster) oldRig.gameObject.SetActive(false);
             EditorSceneManager.MarkSceneDirty(selected.scene);
             Debug.Log($"[PoseSync] タレントを {selected.name} に差し替えました");
         }
@@ -237,6 +301,32 @@ namespace PoseSync.EditorTools
             var sr = (RectTransform)startButton.transform;
             sr.anchorMin = sr.anchorMax = sr.pivot = new Vector2(0.5f, 0.32f);
 
+            // タレント切り替え: 右下の人アイコン + 上方向に開く名前の一覧(スタート画面の暗幕より上に置く)
+            const float iconSize = 110f, margin = 24f;
+            var iconTex = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/ThirdParty/Ui/talent_icon.png");
+            var icon = NewRawImage("TalentIcon", stage);
+            icon.raycastTarget = true;
+            if (iconTex != null) icon.texture = iconTex;
+            else icon.color = new Color(0.6f, 0.6f, 0.6f); // アイコン素材が無い時は灰色の四角
+            var ir = icon.rectTransform;
+            ir.anchorMin = ir.anchorMax = ir.pivot = new Vector2(1f, 0f);
+            ir.sizeDelta = iconTex != null ? new Vector2(iconSize * iconTex.width / iconTex.height, iconSize) : new Vector2(iconSize, iconSize);
+            ir.anchoredPosition = new Vector2(-margin, margin);
+            var iconButton = icon.gameObject.AddComponent<Button>();
+            iconButton.targetGraphic = icon;
+
+            var list = NewRect("TalentList", stage);
+            list.anchorMin = list.anchorMax = list.pivot = new Vector2(1f, 0f);
+            list.anchoredPosition = new Vector2(-margin, margin + iconSize + 12f);
+            list.sizeDelta = new Vector2(320f, 0f);
+            var layout = list.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.spacing = 10f;
+            layout.childControlWidth = layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+            list.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            list.gameObject.SetActive(false);
+
             // シャッター(画面全体を覆うので、状態表示以外のすべての上に置く)
             var shutterView = NewRawImage("ShutterView", stage);
             Stretch(shutterView.rectTransform);
@@ -324,6 +414,15 @@ namespace PoseSync.EditorTools
                 bye = Clip("voice_bye"),
             };
             flow.voice = voice;
+
+            // タレント切り替え(一覧の中身は BuildWithTalent が VRM から作る。手で entries を足してもよい)
+            var switcher = booth.AddComponent<TalentSwitcher>();
+            switcher.flow = flow;
+            switcher.framing = framing;
+            switcher.iconButton = iconButton;
+            switcher.listPanel = list;
+            switcher.fontSource = message;
+            switcher.entries.Add(new TalentSwitcher.Entry { displayName = "マネキン", model = rig.gameObject });
 
             // 背景の BGM(ループ。ボイスの間は音量を下げる)。素材は ThirdParty、無ければ鳴らさない
             var bgmObject = new GameObject("BGM", typeof(AudioSource));

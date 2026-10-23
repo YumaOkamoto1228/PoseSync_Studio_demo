@@ -8,6 +8,8 @@
 /PoseSync/Assets/ThirdParty.meta
 # 撮影写真・検証サンプル・判定ログ(個人の顔・骨格データ)
 /data/
+# ビルドしたアプリで撮影した時の保存先(実行ファイルの場所によって変わるので、どの階層の data/ も除外)
+data/
 # タレントモデルのレンダー画像・カメラ映像を含む確認画像
 /docs/pose_previews/
 /docs/*.png

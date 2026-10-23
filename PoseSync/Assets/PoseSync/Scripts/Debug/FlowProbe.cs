@@ -80,9 +80,33 @@ namespace PoseSync
                 log.AppendLine($"  終了する → {flow.State}");
                 yield return new WaitForSeconds(flow.talentSlideSeconds + 0.2f);
             }
+            // タレント切り替え: すべてのタレントに切り替えて、画面の人型の頭の位置が揃うか(構図の作り直し)を見る
+            var switcher = FindFirstObjectByType<TalentSwitcher>();
+            if (switcher != null)
+            {
+                yield return WaitState(BoothState.Idle);
+                for (int i = 0; i < switcher.entries.Count; i++)
+                {
+                    switcher.Select(i);
+                    yield return null;
+                    yield return null;
+                    var rig = flow.talent;
+                    Vector3 head = cam.WorldToViewportPoint(rig.head.position), hips = cam.WorldToViewportPoint(rig.hips.position);
+                    log.AppendLine($"  切り替え[{i}] {switcher.entries[i].displayName}: active={rig.gameObject.activeInHierarchy} 頭=({head.x:F2},{head.y:F2}) 腰=({hips.x:F2},{hips.y:F2}) 有効なタレント数={CountActive(switcher)}");
+                }
+                switcher.Select(0);
+            }
+
             Report = log.ToString();
             Debug.Log("[FlowProbe]\n" + Report);
             Done = true;
+        }
+
+        static int CountActive(TalentSwitcher s)
+        {
+            int n = 0;
+            foreach (var e in s.entries) if (e.model != null && e.model.activeInHierarchy) n++;
+            return n;
         }
 
         IEnumerator WaitState(BoothState s)

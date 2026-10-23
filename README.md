@@ -41,18 +41,18 @@ curl -L -o models\selfie_multiclass_256x256.tflite https://storage.googleapis.co
 詳しくは [docs/how_to_run.md](docs/how_to_run.md)、設計の経緯は [docs/design_changes.md](docs/design_changes.md)。
 
 ## 使用素材(クレジット)
-使用モデル:
-「雪花ラミィ」「百鬼あやめ」
-風籟 ~Furai~ 様
+使用モデル:「雪花ラミィ」「百鬼あやめ」
+風籟 ~Furai~ 様 (https://3d.nicovideo.jp/users/53694677)
 
-VOICEVOX:四国めたん
+ボイス:VOICEVOX 様「四国めたん」 (https://voicevox.hiroshiba.jp/)
 
-カメラシャッター素材:みりんの動画素材
-https://miirriin.com/
+カメラシャッター素材:みりんの動画素材 様 (https://miirriin.com/)
 
-カメラ効果音:OtoLogic(https://otologic.jp)
+カメラ効果音:OtoLogic 様 (https://otologic.jp)
 
-使用BGM:「Sunny Time」modus 様(https://opentracks.com/bgm/detail/23907)
+使用BGM:「Sunny Time」modus 様 (https://opentracks.com/bgm/detail/23907)
+
+タレント切り替えアイコン:かくぬる素材工房 様 (https://knsoza1.com/2492.html)
 
 **素材ファイルはすべて、このリポジトリでは配布していません。** 動かす時は各配布元から入手し、次の場所に置いてください。
 
@@ -62,6 +62,7 @@ https://miirriin.com/
 | カメラシャッター素材 | 動画から `server/tools/convert_shutter.py` で連番 PNG を作り `PoseSync/Assets/ThirdParty/Shutter/` へ |
 | ボイス・カメラ効果音 | `PoseSync/Assets/ThirdParty/Voice/`(ファイル名は `docs/how_to_run.md` の「10. ガイド音声・効果音」) |
 | BGM | `PoseSync/Assets/ThirdParty/Bgm/bgm_sunny_time.mp3` |
+| タレント切り替えアイコン | `PoseSync/Assets/ThirdParty/Ui/talent_icon.png` |
 
 ## 公開していないもの
 - 上記の素材ファイル一式と、タレントモデルのレンダー画像

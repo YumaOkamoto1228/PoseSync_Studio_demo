@@ -35,6 +35,14 @@ namespace PoseSync
             Frame(cam);
         }
 
+        /// <summary>タレントを切り替えた時に、新しいモデルに合わせて構図を作り直す。</summary>
+        public void Reframe(TalentRig newRig)
+        {
+            rig = newRig;
+            if (Texture == null) Setup();
+            else Frame(GetComponent<Camera>());
+        }
+
         void Frame(Camera cam)
         {
             if (rig == null || rig.hips == null || rig.leftUpper == null) return;

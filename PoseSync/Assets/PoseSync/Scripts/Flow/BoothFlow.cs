@@ -129,17 +129,25 @@ namespace PoseSync
             if (kb != null)
             {
                 if (kb.spaceKey.wasPressedThisFrame) RequestAdvance();
-                if (kb.escapeKey.wasPressedThisFrame)
-                {
-                    if (State != BoothState.Idle && State != BoothState.Result) SessionAborted?.Invoke(State);
-                    Restart();
-                }
+                if (kb.escapeKey.wasPressedThisFrame) Quit();
             }
             if (statusText != null)
                 statusText.text = $"{State}  cam:{(webcam != null && webcam.IsReady ? webcam.DeviceName : "not ready")}  judge:{Estimator?.DisplayName}{StatusSuffix}";
         }
 
         public void RequestAdvance() => advanceRequested = true;
+
+        /// <summary>Esc: アプリを終了する(エディタでは Play を止める)。体験の途中なら中断として記録する。</summary>
+        public void Quit()
+        {
+            if (State != BoothState.Idle && State != BoothState.Result) SessionAborted?.Invoke(State);
+            sessionCts?.Cancel();
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
 
         /// <summary>結果画面の「終了する」。</summary>
         public void RequestExit() => exitRequested = true;

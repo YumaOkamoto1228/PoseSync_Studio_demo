@@ -11,6 +11,22 @@ namespace PoseSync.EditorTools
     /// </summary>
     public static class LayoutPreviewRenderer
     {
+        /// <summary>プレビュー用に、実行時の TalentSwitcher と同じ見た目の名前ボタンを作る(シーンは保存しない)。</summary>
+        static (GameObject, UnityEngine.UI.Text) PreviewItem(TalentSwitcher s, string name)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UnityEngine.UI.LayoutElement));
+            go.transform.SetParent(s.listPanel, false);
+            go.GetComponent<UnityEngine.UI.LayoutElement>().preferredHeight = s.itemSize.y;
+            go.GetComponent<UnityEngine.UI.Image>().color = s.listPanel.childCount == 1 ? s.selectedColor : s.itemColor;
+            var label = new GameObject("Label", typeof(RectTransform), typeof(UnityEngine.UI.Text));
+            label.transform.SetParent(go.transform, false);
+            var rt = (RectTransform)label.transform;
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = rt.offsetMax = Vector2.zero;
+            var text = label.GetComponent<UnityEngine.UI.Text>();
+            text.text = name; text.fontSize = 44; text.alignment = TextAnchor.MiddleCenter; text.color = s.textColor;
+            return (go, text);
+        }
+
         const int Size = 1080;
         const int UiLayer = 5;
 
@@ -56,6 +72,17 @@ namespace PoseSync.EditorTools
                 outline.effectDistance = style.outlineDistance;
             }
             flow.primaryButton.gameObject.SetActive(false);
+            // タレント切り替えの一覧を開いた状態も確認できるよう、アイコンの上に名前を並べる
+            var switcher = Object.FindFirstObjectByType<TalentSwitcher>();
+            if (switcher != null && switcher.listPanel != null)
+            {
+                switcher.listPanel.gameObject.SetActive(true);
+                foreach (var e in switcher.entries)
+                {
+                    var (_, label) = PreviewItem(switcher, e.displayName);
+                    label.font = flow.messageText.font;
+                }
+            }
             flow.talentView.anchoredPosition = look.TalentShownPosition;
 
             // Overlay の Canvas はカメラで撮れないので、一時的に Camera モードにして描く
