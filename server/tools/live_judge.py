@@ -51,7 +51,8 @@ def square_mirror(frame: np.ndarray) -> np.ndarray:
     return cv2.flip(frame[y0:y0 + s, x0:x0 + s], 1)
 
 
-def draw(img: np.ndarray, det, result, matcher: PoseMatcher, threshold: float) -> None:
+def draw(img: np.ndarray, det, result, matcher: PoseMatcher, threshold: float,
+         footer: str = "1-4: record pose  0: record none  q: quit") -> None:
     s = img.shape[0]
     if det is not None:
         pts = {k: (int(v[0]), int(-v[1])) for k, v in det.skeleton.points().items()}
@@ -74,7 +75,8 @@ def draw(img: np.ndarray, det, result, matcher: PoseMatcher, threshold: float) -
         y += 40
     tx = 20 + int(threshold * scale)
     cv2.line(img, (tx, 105), (tx, y), (0, 0, 255), 2)
-    cv2.putText(img, "1-4: record pose  0: record none  q: quit", (20, s - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
+    if footer:
+        cv2.putText(img, footer, (20, s - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
 
 
 def main() -> None:

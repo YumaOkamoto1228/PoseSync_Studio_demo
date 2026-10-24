@@ -17,7 +17,7 @@ cd C:\PoseSync_Studio\server
 2. Game ビューの比率は何でもよい(中央に 1:1 で表示される)。1080×1080 にすると録画しやすい。
 3. Play → スタート → 枠の中に立つ(両肩・両肘が枠に入ると自動で次へ)→ 見本ポーズ(Space で撮影へ)→ カウントダウン → 判定 → 結果。
    - Space = ボタンと同じ、Esc = 終了(エディタでは Play を止める)。
-4. 画面左下のステータスに、接続状態と直近の判定(`votes` = 各フレームの判定、`server` / `total` = 遅延)が出る。
+4. 画面左下の開発用ステータス(接続状態と直近の判定。`votes` = 各フレームの判定、`server` / `total` = 遅延)は、既定では非表示。Play 中に **F1** キーで表示/非表示を切り替える(`Booth` の **BoothFlow** の showStatus でも変えられる)。
 
 サーバーが起動していない時は自動でデバッグ判定に切り替わる(カウントダウン中に数字キー 1〜4 でポーズ指定、0 でおまかせ、押さなければランダム)。後からサーバーを起動しても、次の撮影から自動で使われる。
 
@@ -82,6 +82,16 @@ Play 中の変更は停止すると元に戻る。決まった値は控えてお
 - 音量は シーンの `BGM` オブジェクトの **BgmPlayer**:`volume`(既定 0.35)、ボイスが流れている間は `duckRatio`(既定 0.5 倍)まで下げる。
 
 ## 12. タレントの切り替え
-- スタート画面と立ち位置ガイドの間、右下の人アイコン(`PoseSync/Assets/ThirdParty/Ui/talent_icon.png`)を押すと、名前の一覧が上に開き、選んだタレントに切り替わる。
+- スタート画面で、右下の人アイコン(`PoseSync/Assets/ThirdParty/Ui/talent_icon.png`)を押すと、名前の一覧が上に開き、選んだタレントに切り替わる。
 - タレントを増やす:VRM を `PoseSync/Assets/ThirdParty/VRM/` に置いて `PoseSync > Build Booth Scene`。表示名には VRM に書かれたモデル名を使う。
   シーンに置いたモデルを手で足す時は、`Booth` の **TalentSwitcher** の entries に「表示名・モデル(TalentRig 付き)」を1行追加する(一覧のボタンは実行時に entries から作る)。
+
+## 13. 判定モニター(デモ動画用)
+判定の様子(腕の骨格・判定結果・各ポーズまでの距離)を別ウィンドウに表示する。見た目は `tools/live_judge.py` と同じ。
+```
+cd C:\PoseSync_Studio\server
+.venv\Scripts\python app.py --monitor
+```
+- Unity を Play すると、カメラ映像が約 10 枚/秒でサーバーに送られ、「PoseSync judge monitor」ウィンドウに表示される。撮影した時は、多数決の結果とフレームごとの判定が下に数秒出る。
+- 撮影時の判定・切り抜きの処理中はモニターの更新を飛ばすので、撮影の待ち時間は増えない。
+- `--monitor` を付けずに起動した時は何も表示しない。Unity 側の送信は Play 中に **F2** で ON/OFF。

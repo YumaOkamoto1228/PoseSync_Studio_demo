@@ -64,6 +64,31 @@ def test_hand_region_relaxes_only_around_hands():
     assert alpha[180, 100] == 0    # それ以外では従来どおり消える
 
 
+def test_monitor_is_noop_without_flag():
+    blank = np.full((256, 256, 3), 128, np.uint8)
+    with TestClient(server.app) as c:
+        r = c.post("/monitor", files={"frame": ("f.jpg", jpeg(blank), "image/jpeg")})
+    assert r.status_code == 204
+
+
+def test_monitor_updates_latest_frame(monkeypatch):
+    class Recorder:
+        def __init__(self):
+            self.updates, self.shots = [], []
+        def update(self, image, det, result):
+            self.updates.append((image.shape, result.key))
+        def shot(self, response):
+            self.shots.append(response["key"])
+    rec = Recorder()
+    monkeypatch.setattr(server, "_monitor", rec)
+    blank = np.full((256, 256, 3), 128, np.uint8)
+    with TestClient(server.app) as c:
+        assert c.post("/monitor", files={"frame": ("f.jpg", jpeg(blank), "image/jpeg")}).status_code == 204
+        c.post("/judge", files=[("frames", ("f.jpg", jpeg(blank), "image/jpeg"))])
+    assert rec.updates == [((1080, 1080, 3), "default")]  # 表示用に 1080px へ拡大して判定
+    assert rec.shots == ["default"]                       # 撮影時の判定もモニターに渡す
+
+
 def test_detect_without_person():
     blank = np.full((256, 256, 3), 128, np.uint8)
     with TestClient(server.app) as c:

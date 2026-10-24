@@ -22,6 +22,8 @@ data/
 /PoseSync/[Oo]bj/
 /PoseSync/[Bb]uild/
 /PoseSync/[Bb]uilds/
+# ビルドしたアプリ(Build1 など名前を変えた出力先も。素材が中に入っているので公開しない)
+/PoseSync/[Bb]uild*/
 /PoseSync/[Ll]ogs/
 /PoseSync/[Uu]ser[Ss]ettings/
 /PoseSync/[Mm]emoryCaptures/

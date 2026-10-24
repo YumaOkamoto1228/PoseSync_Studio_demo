@@ -7,6 +7,7 @@
     POST /judge   : multipart の frames(JPEG 複数、鏡像・1:1 済み)→ ポーズ判定結果(JSON)
     POST /cutout  : multipart の frame(JPEG 1枚)→ 撮影者を切り抜いた PNG(アルファ付き)。人物なしは 422
     POST /detect  : multipart の frame(JPEG 1枚、小さくてよい)→ 肩・肘・手首の画面位置(立ち位置の自動判定用)
+    POST /monitor : multipart の frame(JPEG 1枚)→ --monitor の時、判定の様子を別ウィンドウに表示(デモ動画用)
 
 Unity 側は撮影直前〜シャッターの数フレームを送り、フレームごとの判定を多数決で1つにまとめて返す(§5-5)。
 """
@@ -40,6 +41,7 @@ SAVE_FRAMES = False  # 判定に使ったフレーム画像を保存するか(--
 SAVE_LOG = False     # 判定結果と骨格を data/judge_log に記録するか(起動時は既定で記録、テストでは記録しない)
 EXTRA_SEGMENTER: str | None = None  # 切り抜きで姿勢推定のマスクに合わせる追加モデル(--extra-seg)
 _segmenter: PoseMaskSegmenter | None = None
+_monitor = None  # JudgeMonitor(--monitor の時だけ。判定の様子を別ウィンドウに出す)
 
 
 def _models() -> tuple[PoseEstimator, PoseMatcher]:
@@ -101,6 +103,8 @@ def judge(frames: list[UploadFile] = File(...)) -> dict:
         "log_id": log_id,
     }
     print(f"[judge] {result.key:13s} d={response['distance']:6.1f} votes={response['votes']} {latency:.0f}ms")
+    if _monitor is not None:
+        _monitor.shot(response)
     if SAVE_LOG:
         _save(log_id, images if SAVE_FRAMES else [], response, per_frame, skeletons)
     return response
@@ -113,6 +117,29 @@ def _skeleton_json(det) -> dict | None:
     sk = det.skeleton
     return {"points": {k: v.tolist() for k, v in sk.points().items()},
             "visibility": sk.visibility, "min_visibility": sk.min_visibility, "num_persons": det.num_persons}
+
+
+@app.post("/monitor")
+def monitor(frame: UploadFile = File(...)) -> Response:
+    """デモ用モニター: 届いたフレームで判定し、モニターウィンドウに骨格と各ポーズまでの距離を出す。
+    --monitor で起動していない時、または判定・切り抜きの処理中は何もしない(撮影の判定を待たせない)。"""
+    if _monitor is None:
+        return Response(status_code=204)
+    if not _lock.acquire(blocking=False):
+        return Response(status_code=204)
+    try:
+        est, matcher = _models()
+        img = cv2.imdecode(np.frombuffer(frame.file.read(), np.uint8), cv2.IMREAD_COLOR)
+        if img is None:
+            return Response(status_code=400)
+        img = cv2.resize(img, (1080, 1080))  # 表示の文字・線の太さは 1080px 基準
+        det = est.estimate(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        feats = compute_features(det.skeleton) if det else None
+        result = matcher.classify(feats, det.skeleton.shoulder_visibility if det else 0.0)
+    finally:
+        _lock.release()
+    _monitor.update(img, det, result)
+    return Response(status_code=204)
 
 
 @app.post("/detect")
@@ -166,7 +193,7 @@ def _save(log_id: str, images, response: dict, per_frame, skeletons) -> None:
 
 
 def main() -> None:
-    global SAVE_FRAMES, SAVE_LOG, EXTRA_SEGMENTER
+    global SAVE_FRAMES, SAVE_LOG, EXTRA_SEGMENTER, _monitor
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8765)
@@ -174,7 +201,13 @@ def main() -> None:
     ap.add_argument("--no-log", action="store_true", help="判定結果と骨格の記録もしない")
     ap.add_argument("--extra-seg", choices=["none", "deeplab", "multiclass"], default="none",
                     help="切り抜きで姿勢推定のマスクに合わせる追加モデル(tools/cutout_compare.py で比べて選ぶ)")
+    ap.add_argument("--monitor", action="store_true",
+                    help="判定の様子(腕の骨格と各ポーズまでの距離)を別ウィンドウに表示する(デモ動画用)")
     args = ap.parse_args()
+    if args.monitor:
+        from posesync.monitor import JudgeMonitor
+        _monitor = JudgeMonitor(_models()[1])
+        _monitor.start()
     SAVE_FRAMES = args.save_frames
     SAVE_LOG = not args.no_log
     EXTRA_SEGMENTER = None if args.extra_seg == "none" else args.extra_seg

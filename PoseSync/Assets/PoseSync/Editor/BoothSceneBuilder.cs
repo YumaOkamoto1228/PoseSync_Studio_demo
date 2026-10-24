@@ -391,6 +391,9 @@ namespace PoseSync.EditorTools
             standing.look = look;
             flow.standingDetector = standing;
 
+            // デモ動画用: 判定の様子をサーバーのモニターウィンドウに出す(サーバーを --monitor で起動した時だけ表示)
+            booth.AddComponent<JudgeMonitorStreamer>().webcam = webcam;
+
             // シャッター演出(素材は再配布禁止のため ThirdParty。無ければ白フラッシュ)
             var shutter = booth.AddComponent<ShutterPlayer>();
             shutter.view = shutterView;

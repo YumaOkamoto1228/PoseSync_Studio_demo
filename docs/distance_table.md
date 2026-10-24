@@ -1,6 +1,6 @@
 # テンプレート間距離表
 
-単位: 度相当(matcher.py の重み付き距離)。現在の閾値: 30.0
+単位: 度相当(matcher.py の重み付き距離)。現在の閾値: 40.0
 
 | | heart_half | big_heart | double_peace | peace | peace (mirror) | 腕を下ろす(参考) |
 |---|---|---|---|---|---|---|

@@ -70,6 +70,8 @@ namespace PoseSync
         public RawImage compositeView;
         public Image flash;
         public Text statusText;
+        [Tooltip("左下の開発用ステータス(状態・カメラ・判定・記録状況)を表示するか。Play 中は F1 キーで切り替え")]
+        public bool showStatus = false;
 
         public BoothState State
         {
@@ -131,8 +133,10 @@ namespace PoseSync
                 if (kb.spaceKey.wasPressedThisFrame) RequestAdvance();
                 if (kb.escapeKey.wasPressedThisFrame) Quit();
             }
-            if (statusText != null)
-                statusText.text = $"{State}  cam:{(webcam != null && webcam.IsReady ? webcam.DeviceName : "not ready")}  judge:{Estimator?.DisplayName}{StatusSuffix}";
+            if (kb != null && kb.f1Key.wasPressedThisFrame) showStatus = !showStatus;
+            if (statusText != null && statusText.gameObject.activeSelf != showStatus) statusText.gameObject.SetActive(showStatus);
+            if (statusText != null && showStatus)
+                statusText.text =$"{State}  cam:{(webcam != null && webcam.IsReady ? webcam.DeviceName : "not ready")}  judge:{Estimator?.DisplayName}{StatusSuffix}";
         }
 
         public void RequestAdvance() => advanceRequested = true;

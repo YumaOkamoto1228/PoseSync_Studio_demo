@@ -1,6 +1,6 @@
 """簡易ユーザーテストの体験ログ(data/sessions/*.jsonl)を集計する(§10)。
 
-    .venv\\Scripts\\python tools\\analyze_sessions.py [--date 20261023] [--participant P] [--out ..\\docs\\user_test.md]
+    .venv\\Scripts\\python tools\\analyze_sessions.py [--date 20261023] [--participant P] [--since 2026-10-23T00:00] [--until 2026-10-23T02:00] [--out ..\\docs\\user_test.md]
 
 集計する内容
 - 意図したポーズが選ばれた割合(記録係が結果画面で 1〜4/0 を押した回のみ)と混同行列
@@ -27,7 +27,7 @@ STEP_LABELS = {"Standing": "①立ち位置", "PoseGuide": "②見本", "Countdo
                "Judging": "判定・合成", "Result": "結果画面"}
 
 
-def load_sessions(date: str, participant: str) -> list[dict]:
+def load_sessions(date: str, participant: str, since: str = "", until: str = "") -> list[dict]:
     rows = []
     for f in sorted((ROOT / "data" / "sessions").glob("*.jsonl")):
         if date and date not in f.name:
@@ -37,6 +37,11 @@ def load_sessions(date: str, participant: str) -> list[dict]:
         for line in f.read_text(encoding="utf-8").splitlines():
             if line.strip():
                 r = json.loads(line)
+                started = r.get("started_at", "")
+                if since and started < since:
+                    continue
+                if until and started >= until:
+                    continue
                 if not participant or r.get("participant", "").startswith(participant):
                     rows.append(r)
     return rows
@@ -67,10 +72,12 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", default="", help="例: 20261023(ファイル名に含まれる日付で絞る)")
     ap.add_argument("--participant", default="", help="参加者 ID の先頭で絞る")
+    ap.add_argument("--since", default="", help="この時刻以降に始めた体験だけ(例: 2026-10-23T00:00)")
+    ap.add_argument("--until", default="", help="この時刻より前に始めた体験だけ(例: 2026-10-23T02:00)")
     ap.add_argument("--out", type=Path, default=ROOT / "docs" / "user_test.md")
     args = ap.parse_args()
 
-    rows = load_sessions(args.date, args.participant)
+    rows = load_sessions(args.date, args.participant, args.since, args.until)
     if not rows:
         print("体験ログがありません(data/sessions/*.jsonl)")
         return

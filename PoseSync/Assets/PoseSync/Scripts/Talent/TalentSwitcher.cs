@@ -7,7 +7,7 @@ namespace PoseSync
 {
     /// <summary>
     /// タレントのモデルを切り替える。右下の人アイコンを押すと、名前の一覧が上方向に開き(ドロップアップ)、
-    /// 選んだタレントのモデルに入れ替わる。スタート画面と立ち位置ガイドの間だけ操作できる(撮影中は隠す)。
+    /// 選んだタレントのモデルに入れ替わる。スタート画面でだけ操作できる(体験が始まったら隠す)。
     ///
     /// タレントを増やす時:シーンにモデル(TalentRig 付き)を置き、entries に「表示名・モデル」を1行足すだけでよい
     /// (一覧のボタンは entries から実行時に作る)。PoseSync > Build Booth Scene は Assets/ThirdParty/VRM の
@@ -57,8 +57,8 @@ namespace PoseSync
 
         void Update()
         {
-            // 撮影中・結果画面では切り替えさせない(タレントがいきなり別人になるのを防ぐ)
-            bool usable = flow == null || flow.State == BoothState.Idle || flow.State == BoothState.Standing;
+            // スタート画面でだけ切り替えられる(体験が始まってからタレントが別人になるのを防ぐ)
+            bool usable = flow == null || flow.State == BoothState.Idle;
             bool show = usable && entries.Count > 1;
             if (iconButton != null && iconButton.gameObject.activeSelf != show) iconButton.gameObject.SetActive(show);
             if (!show && open) SetOpen(false);
